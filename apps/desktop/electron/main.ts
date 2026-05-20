@@ -62,6 +62,8 @@ const devReloadMarkersEnabled = process.env.PI_APP_DEV_RELOAD_MARKERS === "1";
 let store: DesktopAppStore;
 const themeManager = new ThemeManager();
 let mainWindow: BrowserWindow | null = null;
+const allWindows = new Set<BrowserWindow>();
+const windowBoundsById = new Map<string, Electron.Rectangle>();
 let notificationManager: NotificationManager | undefined;
 let notificationPermissionService: NotificationPermissionService | undefined;
 let terminalService: TerminalService | undefined;
@@ -152,6 +154,9 @@ function createWindow(): BrowserWindow {
     },
   });
 
+  allWindows.add(window);
+  window.on("closed", () => allWindows.delete(window));
+
   window.once("ready-to-show", () => {
     if (!backgroundTestMode) {
       window.show();
@@ -210,29 +215,33 @@ function createWindow(): BrowserWindow {
 
 function attachStatePublisher(window: BrowserWindow): void {
   const webContentsId = window.webContents.id;
-  stopPublishingState?.();
-  stopPublishingSelectedTranscript?.();
-  stopPublishingState = store.subscribe((state) => {
-    if (canPublishToWindow(window)) {
-      window.webContents.send(desktopIpc.stateChanged, state);
-    }
-  });
-  stopPublishingSelectedTranscript = store.subscribeToSelectedTranscript((payload) => {
-    if (canPublishToWindow(window)) {
-      window.webContents.send(desktopIpc.selectedTranscriptChanged, payload);
-    }
-  });
+  // Create the global fan-out subscriptions once (idempotent across multiple windows).
+  if (!stopPublishingState) {
+    stopPublishingState = store.subscribe((state) => {
+      for (const win of allWindows) {
+        if (canPublishToWindow(win)) {
+          win.webContents.send(desktopIpc.stateChanged, state);
+        }
+      }
+    });
+  }
+  if (!stopPublishingSelectedTranscript) {
+    stopPublishingSelectedTranscript = store.subscribeToSelectedTranscript((payload) => {
+      for (const win of allWindows) {
+        if (canPublishToWindow(win)) {
+          win.webContents.send(desktopIpc.selectedTranscriptChanged, payload);
+        }
+      }
+    });
+  }
   window.webContents.once("render-process-gone", () => {
-    stopPublishingState?.();
-    stopPublishingState = undefined;
-    stopPublishingSelectedTranscript?.();
-    stopPublishingSelectedTranscript = undefined;
+    allWindows.delete(window);
+    if (mainWindow === window) {
+      mainWindow = null;
+    }
+    terminalFocusedWebContentsIds.delete(webContentsId);
   });
   window.once("closed", () => {
-    stopPublishingState?.();
-    stopPublishingState = undefined;
-    stopPublishingSelectedTranscript?.();
-    stopPublishingSelectedTranscript = undefined;
     if (mainWindow === window) {
       mainWindow = null;
     }
@@ -528,6 +537,12 @@ app.whenReady().then(async () => {
   ipcMain.handle(desktopIpc.removeWorktree, (_event, input: RemoveWorktreeInput) =>
     store.removeWorktree(input),
   );
+  ipcMain.handle(desktopIpc.checkoutWorktreesDetached, (_event, workspaceId: string) =>
+    store.checkoutWorktreesDetached({ workspaceId }),
+  );
+  ipcMain.handle(desktopIpc.checkoutMainBranch, (_event, workspaceId: string, branch: string) =>
+    store.checkoutMainBranch({ workspaceId, branch }),
+  );
   ipcMain.handle(desktopIpc.syncCurrentWorkspace, () => store.syncCurrentWorkspace());
   ipcMain.handle(desktopIpc.selectSession, (_event, target: WorkspaceSessionTarget) =>
     store.selectSession(target),
@@ -788,6 +803,27 @@ app.whenReady().then(async () => {
     desktopIpc.diffRunExternalTool,
     (_e, toolPath: string, diffText: string) => runExternalDiffTool(toolPath, diffText),
   );
+
+  ipcMain.handle(desktopIpc.openProjectInNewWindow, async (_e, workspaceId: string) => {
+    const primaryBounds = mainWindow?.getBounds() ?? { x: 100, y: 100, width: 1480, height: 980 };
+    const win = createWindow();
+    win.setBounds({
+      x: primaryBounds.x + 40,
+      y: primaryBounds.y + 40,
+      width: primaryBounds.width,
+      height: primaryBounds.height,
+    });
+    win.webContents.once("did-finish-load", () => {
+      win.webContents.send(desktopIpc.workspacePicked, workspaceId);
+      const state = store.emit();
+      if (canPublishToWindow(win)) {
+        win.webContents.send(desktopIpc.stateChanged, state);
+      }
+    });
+    attachStatePublisher(win);
+    attachViewedSessionTracking(win);
+    return { success: true };
+  });
 
   mainWindow = createWindow();
   notificationManager.trackWindow(mainWindow);

@@ -1,3 +1,5 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { randomUUID } from "node:crypto";
 import { basename, join } from "node:path";
 import { MultiRepoWorktreeManager } from "./multi-repo-worktree-manager";
@@ -97,6 +99,85 @@ export async function removeWorktree(store: AppStoreInternals, input: RemoveWork
   });
 }
 
+/* ── Worktree checkout helpers ─────────────────────────── */
+
+const execFileAsync = promisify(execFile);
+
+async function gitCheckoutDetached(repoPath: string): Promise<void> {
+  await execFileAsync("git", ["-C", repoPath, "checkout", "--detach", "HEAD"], { encoding: "utf8" });
+}
+
+async function gitCheckoutBranch(repoPath: string, branch: string): Promise<void> {
+  await execFileAsync("git", ["-C", repoPath, "checkout", branch], { encoding: "utf8" });
+}
+
+/**
+ * Checkout all worktree directories (linked worktrees only) as detached HEAD.
+ * Works for single-repo and multi-repo project workspaces.
+ */
+export async function checkoutWorktreesDetached(
+  store: AppStoreInternals,
+  input: { workspaceId: string },
+): Promise<{ results: { path: string; ok: boolean; error?: string }[] }> {
+  await store.initialize();
+
+  const workspace = store.state.workspaces.find((w) => w.id === input.workspaceId);
+  if (!workspace) throw new Error(`Unknown workspace: ${input.workspaceId}`);
+
+  // Collect all worktree paths for this workspace (and its sub-repos if multi-repo).
+  const allWorktrees = Object.values(store.state.worktreesByWorkspace).flat();
+  const rootWorkspaceId = workspace.rootWorkspaceId ?? workspace.id;
+  const linkedWorktrees = allWorktrees.filter(
+    (wt) => wt.rootWorkspaceId === rootWorkspaceId && wt.status === "ready",
+  );
+
+  const results: { path: string; ok: boolean; error?: string }[] = [];
+  await Promise.all(
+    linkedWorktrees.map(async (wt) => {
+      try {
+        await gitCheckoutDetached(wt.path);
+        results.push({ path: wt.path, ok: true });
+      } catch (err) {
+        results.push({ path: wt.path, ok: false, error: String(err) });
+      }
+    }),
+  );
+  return { results };
+}
+
+/**
+ * Checkout a branch in all primary repo directories of a workspace.
+ * For single-repo workspaces: one checkout. For multi-repo: one per sub-repo.
+ */
+export async function checkoutMainBranch(
+  store: AppStoreInternals,
+  input: { workspaceId: string; branch: string },
+): Promise<{ results: { path: string; ok: boolean; error?: string }[] }> {
+  await store.initialize();
+
+  const workspace = store.state.workspaces.find((w) => w.id === input.workspaceId);
+  if (!workspace) throw new Error(`Unknown workspace: ${input.workspaceId}`);
+
+  // For a multi-repo workspace use all repoPaths, otherwise the workspace path itself.
+  const paths: readonly string[] =
+    workspace.repoPaths && workspace.repoPaths.length > 0
+      ? workspace.repoPaths
+      : [workspace.path];
+
+  const results: { path: string; ok: boolean; error?: string }[] = [];
+  await Promise.all(
+    paths.map(async (repoPath) => {
+      try {
+        await gitCheckoutBranch(repoPath, input.branch);
+        results.push({ path: repoPath, ok: true });
+      } catch (err) {
+        results.push({ path: repoPath, ok: false, error: String(err) });
+      }
+    }),
+  );
+  return { results };
+}
+
 export async function startThread(store: AppStoreInternals, input: StartThreadInput): Promise<DesktopAppState> {
   await store.initialize();
   const rootWorkspace = store.workspaceRefFromState(input.rootWorkspaceId);
@@ -106,6 +187,8 @@ export async function startThread(store: AppStoreInternals, input: StartThreadIn
 
   return store.withErrorHandling(async () => {
     let targetWorkspace = rootWorkspace;
+    let createdWorktreeContext: WorktreeContextInfo | undefined;
+
     if (input.environment === "worktree") {
       if (input.existingWorktreeId) {
         // Reuse an existing worktree: find its linked workspace and add a session there.
@@ -119,16 +202,52 @@ export async function startThread(store: AppStoreInternals, input: StartThreadIn
         }
         targetWorkspace = linkedWorkspace;
       } else {
-        const worktreeOptions = buildWorktreeOptions(store, rootWorkspace, undefined, undefined, input.prompt);
-        const created = await store.worktreeManager.createWorktree(rootWorkspace, worktreeOptions);
-        const synced = await store.driver.syncWorkspace(created.path, created.displayName);
-        targetWorkspace = synced.workspace;
+        const wsRecord = store.state.workspaces.find((w) => w.id === input.rootWorkspaceId);
+
+        if (wsRecord?.repoPaths && wsRecord.repoPaths.length > 0) {
+          // Multi-repo: check out all repos as worktrees; start pi in the shared root dir.
+          const manager = new MultiRepoWorktreeManager(store.catalogStore);
+          const suffix = shortUniqueSuffix();
+          const preferredTitle = shortDisplayTitle(input.prompt?.trim());
+          const baseLabel = preferredTitle ? clampSlug(slugify(preferredTitle), 18) : "wt";
+          const folderName = `${baseLabel}-${suffix}`;
+          const branchName = `pi/${folderName}`;
+          const projectKey = wsRecord.projectKey ?? wsRecord.id;
+          const repos = wsRecord.repoPaths.map((repoPath, index) => ({
+            name: basename(repoPath),
+            path: repoPath,
+            workspaceId: `${rootWorkspace.workspaceId}-repo-${index}`,
+          }));
+          const worktreeSet = await manager.createWorktreeSet({ projectKey, branchName, repos });
+          const displayName = preferredTitle || `Worktree ${suffix}`;
+          // Use the shared root dir as cwd so pi can navigate to all repos.
+          const synced = await store.driver.syncWorkspace(worktreeSet.rootPath, displayName);
+          targetWorkspace = synced.workspace;
+          createdWorktreeContext = {
+            branchName,
+            paths: worktreeSet.paths,
+            rootPath: worktreeSet.rootPath,
+          };
+        } else {
+          // Single-repo: existing behaviour.
+          const worktreeOptions = buildWorktreeOptions(store, rootWorkspace, undefined, undefined, input.prompt);
+          const created = await store.worktreeManager.createWorktree(rootWorkspace, worktreeOptions);
+          const synced = await store.driver.syncWorkspace(created.path, created.displayName);
+          targetWorkspace = synced.workspace;
+          createdWorktreeContext = {
+            branchName: worktreeOptions.branchName,
+            paths: [created.path],
+            rootPath: created.path,
+          };
+        }
       }
     }
 
     const rawPrompt = input.prompt?.trim() ?? "";
     const wsRecord = store.state.workspaces.find((w) => w.id === input.rootWorkspaceId);
-    const contextPrefix = buildMultiRepoContext(wsRecord);
+    const contextPrefix = createdWorktreeContext
+      ? buildWorktreeContextMessage(wsRecord, createdWorktreeContext)
+      : buildMultiRepoContext(wsRecord);
     const prompt = contextPrefix
       ? contextPrefix + (rawPrompt ? "\n\n" + rawPrompt : "")
       : rawPrompt;
@@ -401,18 +520,53 @@ function shortUniqueSuffix(): string {
  */
 function buildMultiRepoContext(
   workspace: { projectKey?: string; name?: string; repoPaths?: readonly string[] } | undefined,
-  overrideRepoPaths?: readonly string[],
 ): string | undefined {
-  const repoPaths = overrideRepoPaths ?? workspace?.repoPaths;
+  const repoPaths = workspace?.repoPaths;
   if (!repoPaths || repoPaths.length === 0) return undefined;
   const label = workspace?.projectKey ?? workspace?.name ?? "project";
   const lines = [
     "[Multi-repo project context]",
     `Project: ${label}`,
-    "Sub-repo paths in this worktree:",
+    "Sub-repo paths:",
     ...repoPaths.map((p) => `- ${basename(p)}: ${p}`),
     "",
   ];
+  return lines.join("\n");
+}
+
+interface WorktreeContextInfo {
+  readonly branchName?: string;
+  readonly paths: readonly string[];
+  readonly rootPath: string;
+}
+
+/**
+ * Builds a prompt injection for a freshly-created worktree, telling the agent
+ * that the branch is already checked out and where the repos live.
+ */
+function buildWorktreeContextMessage(
+  workspace: { projectKey?: string; name?: string } | undefined,
+  ctx: WorktreeContextInfo,
+): string {
+  const isMultiRepo = ctx.paths.length > 1;
+  const label = workspace?.projectKey ?? workspace?.name ?? "project";
+  const lines: string[] = [
+    "[Worktree context]",
+  ];
+  if (isMultiRepo) {
+    lines.push(`Project: ${label}`);
+  }
+  if (ctx.branchName) {
+    lines.push(`Branch: ${ctx.branchName} (already created${isMultiRepo ? " in all repos" : ""})`);
+  }
+  lines.push(`Working directory: ${ctx.rootPath}`);
+  if (isMultiRepo) {
+    lines.push("", "Sub-repo worktrees:");
+    for (const p of ctx.paths) {
+      lines.push(`- ${basename(p)}: ${p}`);
+    }
+  }
+  lines.push("", "The worktree is ready. Work directly in the paths above — do not create additional branches or worktrees.");
   return lines.join("\n");
 }
 

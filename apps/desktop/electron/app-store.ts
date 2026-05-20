@@ -344,6 +344,18 @@ export class DesktopAppStore implements AppStoreInternals {
     return worktree.removeWorktree(this, input);
   }
 
+  async checkoutWorktreesDetached(
+    input: { workspaceId: string },
+  ): Promise<{ results: { path: string; ok: boolean; error?: string }[] }> {
+    return worktree.checkoutWorktreesDetached(this, input);
+  }
+
+  async checkoutMainBranch(
+    input: { workspaceId: string; branch: string },
+  ): Promise<{ results: { path: string; ok: boolean; error?: string }[] }> {
+    return worktree.checkoutMainBranch(this, input);
+  }
+
   /* ── Composer methods (delegated) ──────────────────────── */
 
   async updateComposerDraft(composerDraft: string): Promise<DesktopAppState> {

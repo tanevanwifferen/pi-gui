@@ -36,6 +36,8 @@ export interface WorkspaceMenuState {
   readonly expandWorkspace: (workspaceId: string) => void;
   readonly createWorktree: (workspaceId: string, fromSessionWorkspaceId?: string, fromSessionId?: string) => void;
   readonly removeWorktree: (workspaceId: string, worktree: WorktreeRecord) => void;
+  readonly checkoutWorktreesDetached: (workspaceId: string) => void;
+  readonly checkoutMainBranch: (workspaceId: string) => void;
   readonly selectWorkspace: (workspaceId: string) => void;
   readonly runWorkspaceMenuAction: (event: ReactMouseEvent<HTMLElement>, action: () => void) => void;
 }
@@ -180,6 +182,46 @@ export function useWorkspaceMenu(params: UseWorkspaceMenuParams): WorkspaceMenuS
     );
   };
 
+  const checkoutWorktreesDetached = (workspaceId: string) => {
+    const confirmed = window.confirm(
+      "Checkout all linked worktrees as detached HEAD?\nThis allows the main directory to freely switch branches while each worktree stays at its commit.",
+    );
+    setWorkspaceMenuId(null);
+    if (!confirmed || !api) return;
+    void (api as any)
+      .checkoutWorktreesDetached(workspaceId)
+      .then((result: { results: { path: string; ok: boolean; error?: string }[] }) => {
+        const failed = result.results.filter((r: { ok: boolean }) => !r.ok);
+        if (failed.length > 0) {
+          window.alert(
+            `Some worktrees failed:\n${failed.map((r: { path: string; error?: string }) => `${r.path}: ${r.error ?? "unknown error"}`).join("\n")}`,
+          );
+        }
+      })
+      .catch((err: unknown) => {
+        window.alert(`Error: ${String(err)}`);
+      });
+  };
+
+  const checkoutMainBranch = (workspaceId: string) => {
+    const branch = window.prompt("Branch to checkout in main directory:", "main");
+    setWorkspaceMenuId(null);
+    if (!branch?.trim() || !api) return;
+    void (api as any)
+      .checkoutMainBranch(workspaceId, branch.trim())
+      .then((result: { results: { path: string; ok: boolean; error?: string }[] }) => {
+        const failed = result.results.filter((r: { ok: boolean }) => !r.ok);
+        if (failed.length > 0) {
+          window.alert(
+            `Some repos failed:\n${failed.map((r: { path: string; error?: string }) => `${r.path}: ${r.error ?? "unknown error"}`).join("\n")}`,
+          );
+        }
+      })
+      .catch((err: unknown) => {
+        window.alert(`Error: ${String(err)}`);
+      });
+  };
+
   const selectWorkspace = (workspaceId: string) => {
     setEnvironmentMenuOpen(false);
     if (!api) {
@@ -222,6 +264,8 @@ export function useWorkspaceMenu(params: UseWorkspaceMenuParams): WorkspaceMenuS
     expandWorkspace,
     createWorktree,
     removeWorktree,
+    checkoutWorktreesDetached,
+    checkoutMainBranch,
     selectWorkspace,
     runWorkspaceMenuAction,
   };

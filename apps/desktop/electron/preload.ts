@@ -129,6 +129,10 @@ contextBridge.exposeInMainWorld("piApp", {
     ipcRenderer.invoke(desktopIpc.createWorktree, input) as Promise<DesktopAppState>,
   removeWorktree: (input: RemoveWorktreeInput) =>
     ipcRenderer.invoke(desktopIpc.removeWorktree, input) as Promise<DesktopAppState>,
+  checkoutWorktreesDetached: (workspaceId: string) =>
+    ipcRenderer.invoke(desktopIpc.checkoutWorktreesDetached, workspaceId) as Promise<{ results: { path: string; ok: boolean; error?: string }[] }>,
+  checkoutMainBranch: (workspaceId: string, branch: string) =>
+    ipcRenderer.invoke(desktopIpc.checkoutMainBranch, workspaceId, branch) as Promise<{ results: { path: string; ok: boolean; error?: string }[] }>,
   openSkillInFinder: (workspaceId: string, filePath: string) =>
     ipcRenderer.invoke(desktopIpc.openSkillInFinder, workspaceId, filePath) as Promise<void>,
   openExtensionInFinder: (workspaceId: string, filePath: string) =>
@@ -293,4 +297,6 @@ contextBridge.exposeInMainWorld("piApp", {
     ipcRenderer.invoke(desktopIpc.branchCompareFiles, workspaceId, featureBranch, baseBranch),
   branchCompareDiff: (workspaceId: string, featureBranch: string, filePath: string, baseBranch?: string) =>
     ipcRenderer.invoke(desktopIpc.branchCompareDiff, workspaceId, featureBranch, filePath, baseBranch),
+  openProjectInNewWindow: (workspaceId: string) =>
+    ipcRenderer.invoke(desktopIpc.openProjectInNewWindow, workspaceId) as Promise<{ success: boolean }>,
 });

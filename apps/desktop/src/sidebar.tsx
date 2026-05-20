@@ -510,17 +510,41 @@ function WorkspaceGroupContent(
                 Open folder
               </button>
               {linkedWorktree ? (
-                <button
-                  className="workspace-menu__item workspace-menu__item--danger"
-                  type="button"
-                  onClick={(event) =>
-                    wsMenu.runWorkspaceMenuAction(event, () =>
-                      wsMenu.removeWorktree(linkedWorktree.rootWorkspaceId || rootWorkspace.id, linkedWorktree),
-                    )
-                  }
-                >
-                  Remove worktree
-                </button>
+                <>
+                  <button
+                    className="workspace-menu__item"
+                    type="button"
+                    onClick={(event) =>
+                      wsMenu.runWorkspaceMenuAction(event, () =>
+                        wsMenu.checkoutWorktreesDetached(rootWorkspace.id),
+                      )
+                    }
+                  >
+                    Detach worktrees (HEAD)
+                  </button>
+                  <button
+                    className="workspace-menu__item"
+                    type="button"
+                    onClick={(event) =>
+                      wsMenu.runWorkspaceMenuAction(event, () =>
+                        wsMenu.checkoutMainBranch(rootWorkspace.id),
+                      )
+                    }
+                  >
+                    Checkout branch in main dir…
+                  </button>
+                  <button
+                    className="workspace-menu__item workspace-menu__item--danger"
+                    type="button"
+                    onClick={(event) =>
+                      wsMenu.runWorkspaceMenuAction(event, () =>
+                        wsMenu.removeWorktree(linkedWorktree.rootWorkspaceId || rootWorkspace.id, linkedWorktree),
+                      )
+                    }
+                  >
+                    Remove worktree
+                  </button>
+                </>
               ) : (
                 <button
                   className="workspace-menu__item"
@@ -549,6 +573,20 @@ function WorkspaceGroupContent(
             </div>
           ) : null}
         </span>
+        {(rootWorkspace.kind === "project" || (rootWorkspace.repoPaths && rootWorkspace.repoPaths.length > 0)) && (
+          <button
+            className="icon-button workspace-row__new-window-btn"
+            title="Open in new window"
+            aria-label="Open in new window"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              void (api as any).openProjectInNewWindow(rootWorkspace.id);
+            }}
+          >
+            ⧉
+          </button>
+        )}
       </div>
       {wsMenu.workspaceRenameId === rootWorkspace.id ? (
         <form

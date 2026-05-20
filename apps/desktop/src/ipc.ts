@@ -43,6 +43,8 @@ export const desktopIpc = {
   openWorkspaceInFinder: "pi-gui:open-workspace-in-finder",
   createWorktree: "pi-gui:create-worktree",
   removeWorktree: "pi-gui:remove-worktree",
+  checkoutWorktreesDetached: "pi-gui:checkout-worktrees-detached",
+  checkoutMainBranch: "pi-gui:checkout-main-branch",
   openSkillInFinder: "pi-gui:open-skill-in-finder",
   openExtensionInFinder: "pi-gui:open-extension-in-finder",
   syncCurrentWorkspace: "pi-gui:sync-current-workspace",
@@ -119,6 +121,7 @@ export const desktopIpc = {
   addProjectWorkspace: "pi-gui:add-project-workspace",
   projectsDiscover: "pi-gui:projects-discover",
   diffRunExternalTool: "pi-gui:diff-run-external-tool",
+  openProjectInNewWindow: "pi-gui:open-project-in-new-window",
   branchCompareInfos: "pi-gui:branch-compare-infos",
   branchCompareFiles: "pi-gui:branch-compare-files",
   branchCompareDiff: "pi-gui:branch-compare-diff",
@@ -240,6 +243,8 @@ export interface PiDesktopApi {
   openWorkspaceInFinder(workspaceId: string): Promise<void>;
   createWorktree(input: CreateWorktreeInput): Promise<DesktopAppState>;
   removeWorktree(input: RemoveWorktreeInput): Promise<DesktopAppState>;
+  checkoutWorktreesDetached(workspaceId: string): Promise<{ results: { path: string; ok: boolean; error?: string }[] }>;
+  checkoutMainBranch(workspaceId: string, branch: string): Promise<{ results: { path: string; ok: boolean; error?: string }[] }>;
   openSkillInFinder(workspaceId: string, filePath: string): Promise<void>;
   openExtensionInFinder(workspaceId: string, filePath: string): Promise<void>;
   syncCurrentWorkspace(): Promise<DesktopAppState>;
