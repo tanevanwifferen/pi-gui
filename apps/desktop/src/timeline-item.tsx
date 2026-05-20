@@ -1,5 +1,6 @@
+import { useEffect, useRef } from "react";
 import type { SessionTranscriptMessage } from "@pi-gui/pi-sdk-driver";
-import type { TimelineActivity, TimelineToolCall, TimelineSummary, TranscriptMessage } from "./timeline-types";
+import type { TimelineActivity, TimelineThinking, TimelineToolCall, TimelineSummary, TranscriptMessage } from "./timeline-types";
 import { MessageMarkdown } from "./message-markdown";
 import { InlineDiff, extractDiffFromOutput } from "./diff-inline";
 import { ChevronRightIcon, CopyIcon, DiffIcon, FileIcon } from "./icons";
@@ -8,12 +9,16 @@ import { extensionToLanguage } from "./syntax-highlight";
 export function TimelineItem({
   item,
   expandedToolCallIds,
+  expandedThinkingIds,
   onToggleToolCall,
+  onToggleThinking,
   onViewFileInDiff,
 }: {
   readonly item: TranscriptMessage;
   readonly expandedToolCallIds?: ReadonlySet<string>;
+  readonly expandedThinkingIds?: ReadonlySet<string>;
   readonly onToggleToolCall?: (callId: string) => void;
+  readonly onToggleThinking?: (id: string) => void;
   readonly onViewFileInDiff?: (path: string) => void;
 }) {
   switch (item.kind) {
@@ -32,6 +37,14 @@ export function TimelineItem({
       );
     case "summary":
       return <TimelineSummaryItem item={item} />;
+    case "thinking":
+      return (
+        <ThinkingItem
+          item={item}
+          expanded={expandedThinkingIds?.has(item.id) ?? false}
+          onToggle={onToggleThinking}
+        />
+      );
     default:
       return null;
   }
@@ -196,6 +209,57 @@ function TimelineToolCallItem({
           )}
         </div>
       ) : null}
+    </article>
+  );
+}
+
+function ThinkingItem({
+  item,
+  expanded,
+  onToggle,
+}: {
+  readonly item: TimelineThinking;
+  readonly expanded: boolean;
+  readonly onToggle?: (id: string) => void;
+}) {
+  const tickerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!item.isStreaming || expanded) {
+      return;
+    }
+    const el = tickerRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
+  });
+
+  const label = item.isStreaming ? "Thinking…" : "Thought";
+
+  return (
+    <article className="timeline-thinking">
+      <button
+        className="timeline-thinking__header"
+        type="button"
+        aria-expanded={expanded}
+        onClick={() => onToggle?.(item.id)}
+      >
+        <span className={`timeline-thinking__chevron ${expanded ? "timeline-thinking__chevron--expanded" : ""}`}>
+          <ChevronRightIcon />
+        </span>
+        <span className={`timeline-thinking__label ${item.isStreaming ? "timeline-thinking__label--streaming" : ""}`}>
+          {label}
+        </span>
+      </button>
+      {expanded ? (
+        <div className="timeline-thinking__body">
+          <pre className="timeline-thinking__full">{item.text}</pre>
+        </div>
+      ) : (
+        <div className="timeline-thinking__ticker" ref={tickerRef}>
+          <div className="timeline-thinking__ticker-inner">{item.text}</div>
+        </div>
+      )}
     </article>
   );
 }

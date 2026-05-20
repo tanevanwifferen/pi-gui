@@ -38,4 +38,12 @@ export interface TimelineSummary {
   readonly presentation: TimelineSummaryPresentation;
 }
 
-export type TranscriptMessage = SessionTranscriptMessage | TimelineActivity | TimelineToolCall | TimelineSummary;
+export interface TimelineThinking {
+  readonly kind: "thinking";
+  readonly id: string;
+  readonly createdAt: string;
+  readonly text: string;
+  readonly isStreaming: boolean;
+}
+
+export type TranscriptMessage = SessionTranscriptMessage | TimelineActivity | TimelineToolCall | TimelineSummary | TimelineThinking;

@@ -516,6 +516,16 @@ export function makeToolItem(
   };
 }
 
+export function makeThinkingItem(text: string, isStreaming = true): Extract<TranscriptMessage, { kind: "thinking" }> {
+  return {
+    kind: "thinking",
+    id: randomUUID(),
+    createdAt: new Date().toISOString(),
+    text,
+    isStreaming,
+  };
+}
+
 export function previewFromTranscript(transcript: readonly TranscriptMessage[]): string | undefined {
   for (let index = transcript.length - 1; index >= 0; index -= 1) {
     const item = transcript[index];

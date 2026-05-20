@@ -5,6 +5,7 @@ import {
   formatElapsedDuration,
   makeActivityItem,
   makeSummaryItem,
+  makeThinkingItem,
   makeToolItem,
   makeTranscriptMessage,
   makeTranscriptMessageWithAttachments,
@@ -22,6 +23,7 @@ interface TimelineRuntimeState {
   readonly runningSinceBySession: Map<string, string>;
   readonly activeAssistantMessageBySession: Map<string, string>;
   readonly activeWorkingActivityBySession: Map<string, string>;
+  readonly activeThinkingIdBySession: Map<string, string>;
 }
 
 export function appendUserMessage(
@@ -65,6 +67,35 @@ export function appendQueuedUserMessage(
   } else {
     transcript.push(nextMessage);
   }
+  transcriptCache.set(key, transcript);
+}
+
+export function appendThinkingDelta(
+  transcriptCache: Map<string, TranscriptMessage[]>,
+  activeThinkingIdBySession: Map<string, string>,
+  sessionRef: SessionRef,
+  text: string,
+): void {
+  const key = sessionKey(sessionRef);
+  const transcript = [...(transcriptCache.get(key) ?? [])];
+  const activeId = activeThinkingIdBySession.get(key);
+
+  if (activeId) {
+    const index = transcript.findIndex((item) => item.id === activeId);
+    const current = index >= 0 ? transcript[index] : undefined;
+    if (current?.kind === "thinking") {
+      transcript[index] = { ...current, text: `${current.text}${text}` };
+    } else {
+      const item = makeThinkingItem(text);
+      transcript.push(item);
+      activeThinkingIdBySession.set(key, item.id);
+    }
+  } else {
+    const item = makeThinkingItem(text);
+    transcript.push(item);
+    activeThinkingIdBySession.set(key, item.id);
+  }
+
   transcriptCache.set(key, transcript);
 }
 
@@ -112,7 +143,7 @@ export function applyTimelineEvent(
   event: SessionDriverEvent,
   state: TimelineRuntimeState,
 ): void {
-  if (event.type === "assistantDelta") {
+  if (event.type === "assistantDelta" || event.type === "thinkingDelta") {
     return;
   }
 
@@ -279,6 +310,15 @@ function clearRunState(
   state.activeWorkingActivityBySession.delete(key);
   state.runningSinceBySession.delete(key);
   state.runMetricsBySession.delete(key);
+  const thinkingId = state.activeThinkingIdBySession.get(key);
+  if (thinkingId) {
+    const index = transcript.findIndex((item) => item.id === thinkingId);
+    const current = index >= 0 ? transcript[index] : undefined;
+    if (current?.kind === "thinking") {
+      transcript[index] = { ...current, isStreaming: false };
+    }
+    state.activeThinkingIdBySession.delete(key);
+  }
 }
 
 function toolLabel(toolName: string, input: unknown): string {

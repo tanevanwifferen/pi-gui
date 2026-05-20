@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState, type MutableRefObject, type RefCallback, type RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MutableRefObject, type RefCallback, type RefObject } from "react";
 import type { TranscriptMessage } from "./desktop-state";
 import { ThreadSearchBar } from "./thread-search";
 import { TimelineItem } from "./timeline-item";
@@ -58,6 +58,7 @@ export function ConversationTimeline({
     !disableVirtualization &&
     !hasUnreliableVirtualizedHeights;
   const [expandedToolCallIds, setExpandedToolCallIds] = useState<Set<string>>(() => new Set());
+  const [expandedThinkingIds, setExpandedThinkingIds] = useState<Set<string>>(() => new Set());
   const measuredHeightsRef = useRef(new Map<string, number>());
   const [measurementVersion, setMeasurementVersion] = useState(0);
 
@@ -120,6 +121,37 @@ export function ConversationTimeline({
     });
   }, []);
 
+  const toggleThinking = useCallback((id: string) => {
+    setExpandedThinkingIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  // Ctrl-O / Cmd-O toggles the latest thinking block
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.shiftKey || event.key.toLowerCase() !== "o") {
+        return;
+      }
+      const latestThinking = [...transcript].reverse().find((item) => item.kind === "thinking");
+      if (!latestThinking) {
+        return;
+      }
+      event.preventDefault();
+      toggleThinking(latestThinking.id);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [transcript, toggleThinking]);
+
   const updateMeasuredHeight = useCallback((id: string, height: number) => {
     const nextHeight = Math.max(1, Math.ceil(height));
     const currentHeight = measuredHeightsRef.current.get(id);
@@ -170,8 +202,10 @@ export function ConversationTimeline({
           measuredHeightsRef={measuredHeightsRef}
           measurementVersion={measurementVersion}
           expandedToolCallIds={expandedToolCallIds}
+          expandedThinkingIds={expandedThinkingIds}
           onHeightChange={updateMeasuredHeight}
           onToggleToolCall={toggleToolCall}
+          onToggleThinking={toggleThinking}
           onViewFileInDiff={onViewFileInDiff}
         />
       ) : (
@@ -182,7 +216,9 @@ export function ConversationTimeline({
               key={item.id}
               onHeightChange={updateMeasuredHeight}
               expandedToolCallIds={expandedToolCallIds}
+              expandedThinkingIds={expandedThinkingIds}
               onToggleToolCall={toggleToolCall}
+              onToggleThinking={toggleThinking}
               onViewFileInDiff={onViewFileInDiff}
             />
           ))}
@@ -204,8 +240,10 @@ function VirtualizedTranscriptList({
   measuredHeightsRef,
   measurementVersion,
   expandedToolCallIds,
+  expandedThinkingIds,
   onHeightChange,
   onToggleToolCall,
+  onToggleThinking,
   onViewFileInDiff,
 }: {
   readonly transcript: readonly TranscriptMessage[];
@@ -214,8 +252,10 @@ function VirtualizedTranscriptList({
   readonly measuredHeightsRef: MutableRefObject<Map<string, number>>;
   readonly measurementVersion: number;
   readonly expandedToolCallIds: ReadonlySet<string>;
+  readonly expandedThinkingIds: ReadonlySet<string>;
   readonly onHeightChange: (id: string, height: number) => void;
   readonly onToggleToolCall: (callId: string) => void;
+  readonly onToggleThinking: (id: string) => void;
   readonly onViewFileInDiff?: (path: string) => void;
 }) {
   const [viewport, setViewport] = useState({ scrollTop: 0, height: 0 });
@@ -287,7 +327,9 @@ function VirtualizedTranscriptList({
             top={rowOffsets[index] ?? 0}
             onHeightChange={onHeightChange}
             expandedToolCallIds={expandedToolCallIds}
+            expandedThinkingIds={expandedThinkingIds}
             onToggleToolCall={onToggleToolCall}
+            onToggleThinking={onToggleThinking}
             onViewFileInDiff={onViewFileInDiff}
           />
         );
@@ -302,7 +344,9 @@ function MeasuredTimelineItem({
   top,
   onHeightChange,
   expandedToolCallIds,
+  expandedThinkingIds,
   onToggleToolCall,
+  onToggleThinking,
   onViewFileInDiff,
 }: {
   readonly item: TranscriptMessage;
@@ -310,7 +354,9 @@ function MeasuredTimelineItem({
   readonly top?: number;
   readonly onHeightChange: (id: string, height: number) => void;
   readonly expandedToolCallIds: ReadonlySet<string>;
+  readonly expandedThinkingIds: ReadonlySet<string>;
   readonly onToggleToolCall: (callId: string) => void;
+  readonly onToggleThinking: (id: string) => void;
   readonly onViewFileInDiff?: (path: string) => void;
 }) {
   const rowRef = useRef<HTMLDivElement | null>(null);
@@ -345,7 +391,9 @@ function MeasuredTimelineItem({
       <TimelineItem
         item={item}
         expandedToolCallIds={expandedToolCallIds}
+        expandedThinkingIds={expandedThinkingIds}
         onToggleToolCall={onToggleToolCall}
+        onToggleThinking={onToggleThinking}
         onViewFileInDiff={onViewFileInDiff}
       />
     </div>
@@ -402,6 +450,9 @@ function estimateTimelineItemHeight(item: TranscriptMessage): number {
   }
   if (item.kind === "tool") {
     return 52;
+  }
+  if (item.kind === "thinking") {
+    return 28 + 5 * 18 + 4;
   }
   if (item.kind === "summary") {
     return item.presentation === "divider" ? 44 : 38;

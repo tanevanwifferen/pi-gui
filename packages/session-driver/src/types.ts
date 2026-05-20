@@ -143,6 +143,11 @@ export interface AssistantDeltaEvent extends SessionEventBase {
   readonly text: string;
 }
 
+export interface ThinkingDeltaEvent extends SessionEventBase {
+  readonly type: "thinkingDelta";
+  readonly text: string;
+}
+
 export interface QueuedMessageStartedEvent extends SessionEventBase {
   readonly type: "queuedMessageStarted";
   readonly message: SessionQueuedMessage;
@@ -291,6 +296,7 @@ export type SessionDriverEvent =
   | SessionOpenedEvent
   | SessionUpdatedEvent
   | AssistantDeltaEvent
+  | ThinkingDeltaEvent
   | QueuedMessageStartedEvent
   | ToolStartedEvent
   | ToolUpdatedEvent

@@ -54,6 +54,7 @@ import {
 import {
   applyTimelineEvent,
   appendAssistantDelta,
+  appendThinkingDelta,
   clearActiveAssistantMessage,
 } from "./app-store-timeline";
 import { applySessionEventState, updateSessionRecord } from "./app-store-session-state";
@@ -1371,6 +1372,9 @@ export class DesktopAppStore implements AppStoreInternals {
       case "assistantDelta":
         appendAssistantDelta(this.sessionState.transcriptCache, this.sessionState.activeAssistantMessageBySession, event.sessionRef, event.text);
         break;
+      case "thinkingDelta":
+        appendThinkingDelta(this.sessionState.transcriptCache, this.sessionState.activeThinkingIdBySession, event.sessionRef, event.text);
+        break;
       case "sessionOpened":
       case "runCompleted":
         this.updateSessionConfig(event.sessionRef, event.snapshot.config);
@@ -1430,6 +1434,7 @@ export class DesktopAppStore implements AppStoreInternals {
       runningSinceBySession: this.sessionState.runningSinceBySession,
       activeAssistantMessageBySession: this.sessionState.activeAssistantMessageBySession,
       activeWorkingActivityBySession: this.sessionState.activeWorkingActivityBySession,
+      activeThinkingIdBySession: this.sessionState.activeThinkingIdBySession,
     });
     this.state = applySessionEventState(
       this.state,

@@ -127,6 +127,11 @@ declare module "@pi-gui/session-driver" {
     readonly text: string;
   }
 
+  export interface ThinkingDeltaEvent extends SessionEventBase {
+    readonly type: "thinkingDelta";
+    readonly text: string;
+  }
+
   export interface QueuedMessageStartedEvent extends SessionEventBase {
     readonly type: "queuedMessageStarted";
     readonly message: SessionQueuedMessage;
@@ -261,6 +266,7 @@ declare module "@pi-gui/session-driver" {
     | SessionOpenedEvent
     | SessionUpdatedEvent
     | AssistantDeltaEvent
+    | ThinkingDeltaEvent
     | QueuedMessageStartedEvent
     | ToolStartedEvent
     | ToolUpdatedEvent
