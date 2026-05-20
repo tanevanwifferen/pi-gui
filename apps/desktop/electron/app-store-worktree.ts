@@ -107,13 +107,31 @@ export async function startThread(store: AppStoreInternals, input: StartThreadIn
   return store.withErrorHandling(async () => {
     let targetWorkspace = rootWorkspace;
     if (input.environment === "worktree") {
-      const worktreeOptions = buildWorktreeOptions(store, rootWorkspace, undefined, undefined, input.prompt);
-      const created = await store.worktreeManager.createWorktree(rootWorkspace, worktreeOptions);
-      const synced = await store.driver.syncWorkspace(created.path, created.displayName);
-      targetWorkspace = synced.workspace;
+      if (input.existingWorktreeId) {
+        // Reuse an existing worktree: find its linked workspace and add a session there.
+        const allWorktrees = Object.values(store.state.worktreesByWorkspace).flat();
+        const existing = allWorktrees.find((wt) => wt.id === input.existingWorktreeId);
+        const linkedWorkspace = existing?.linkedWorkspaceId
+          ? store.workspaceRefFromState(existing.linkedWorkspaceId)
+          : undefined;
+        if (!linkedWorkspace) {
+          throw new Error(`Worktree ${input.existingWorktreeId} not found or has no linked workspace`);
+        }
+        targetWorkspace = linkedWorkspace;
+      } else {
+        const worktreeOptions = buildWorktreeOptions(store, rootWorkspace, undefined, undefined, input.prompt);
+        const created = await store.worktreeManager.createWorktree(rootWorkspace, worktreeOptions);
+        const synced = await store.driver.syncWorkspace(created.path, created.displayName);
+        targetWorkspace = synced.workspace;
+      }
     }
 
-    const prompt = input.prompt?.trim() ?? "";
+    const rawPrompt = input.prompt?.trim() ?? "";
+    const wsRecord = store.state.workspaces.find((w) => w.id === input.rootWorkspaceId);
+    const contextPrefix = buildMultiRepoContext(wsRecord);
+    const prompt = contextPrefix
+      ? contextPrefix + (rawPrompt ? "\n\n" + rawPrompt : "")
+      : rawPrompt;
     const attachments = input.attachments ?? [];
     const createOptions = (await store.buildCreateSessionOptions(targetWorkspace.workspaceId)) ?? {};
     const initialModel =
@@ -152,7 +170,7 @@ export async function startThread(store: AppStoreInternals, input: StartThreadIn
       selectedSessionId: session.ref.sessionId,
       composerDraft: "",
       clearLastError: true,
-      refreshWorktrees: input.environment === "worktree",
+      refreshWorktrees: input.environment === "worktree" && !input.existingWorktreeId,
       activeView: "threads",
     });
 
@@ -374,6 +392,28 @@ function clampSlug(value: string, limit = 28): string {
 
 function shortUniqueSuffix(): string {
   return randomUUID().slice(0, 6);
+}
+
+/**
+ * If the workspace is a multi-repo project workspace, build a context prefix
+ * that tells the agent about the sub-repo layout.
+ * Returns undefined for single-repo workspaces.
+ */
+function buildMultiRepoContext(
+  workspace: { projectKey?: string; name?: string; repoPaths?: readonly string[] } | undefined,
+  overrideRepoPaths?: readonly string[],
+): string | undefined {
+  const repoPaths = overrideRepoPaths ?? workspace?.repoPaths;
+  if (!repoPaths || repoPaths.length === 0) return undefined;
+  const label = workspace?.projectKey ?? workspace?.name ?? "project";
+  const lines = [
+    "[Multi-repo project context]",
+    `Project: ${label}`,
+    "Sub-repo paths in this worktree:",
+    ...repoPaths.map((p) => `- ${basename(p)}: ${p}`),
+    "",
+  ];
+  return lines.join("\n");
 }
 
 function shortDisplayTitle(value: string | undefined, limit = 44): string | undefined {
