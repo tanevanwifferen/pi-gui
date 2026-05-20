@@ -3619,3 +3619,30 @@ mark.thread-find-active {
 .diff-markdown-viewer__content h3 { margin-top: 0; }
 .diff-markdown-viewer__content code { background: var(--code-bg, rgba(0,0,0,.05)); padding: 1px 4px; border-radius: 3px; }
 .diff-markdown-viewer__content pre { background: var(--code-bg); padding: 12px; border-radius: 6px; overflow-x: auto; }
+
+/* Side-by-side diff viewer */
+.diff-side-by-side {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+}
+.diff-side-by-side__pane {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  border-right: 1px solid var(--border);
+}
+.diff-side-by-side__pane--right { border-right: none; }
+.diff-sbs-pre { margin: 0; white-space: pre; }
+.diff-sbs-line { display: flex; min-height: 1.5em; }
+.diff-sbs-line--added { background: rgba(46, 160, 67, 0.12); }
+.diff-sbs-line--removed { background: rgba(248, 81, 73, 0.12); }
+.diff-sbs-line--empty { background: rgba(0, 0, 0, 0.02); opacity: 0.5; }
+.diff-sbs-line__no { min-width: 3em; text-align: right; padding: 0 0.5em; opacity: 0.4; user-select: none; flex-shrink: 0; }
+.diff-sbs-line__content { flex: 1; padding: 0 0.5em; white-space: pre; }
+
+:root.dark .diff-sbs-line--added { background: rgba(34, 197, 94, 0.15); }
+:root.dark .diff-sbs-line--removed { background: rgba(239, 68, 68, 0.15); }
+:root.dark .diff-sbs-line--empty { background: rgba(255, 255, 255, 0.02); }
