@@ -26,6 +26,8 @@ import {
   touchProject,
   importSingularity,
 } from "./app-store-projects";
+import { discoverProjects } from "./project-discovery";
+import { homedir } from "node:os";
 import { listWorkspaceFiles } from "./app-store-files";
 import { MAIN_DEV_RELOAD_MARKER } from "./dev-reload-main-probe";
 import { NotificationManager } from "./notification-manager";
@@ -743,6 +745,9 @@ app.whenReady().then(async () => {
   ipcMain.handle(desktopIpc.projectsImportSingularity, () => importSingularity(store));
   ipcMain.handle(desktopIpc.addProjectWorkspace, (_e, input) =>
     addProjectWorkspace(store, input),
+  );
+  ipcMain.handle(desktopIpc.projectsDiscover, (_e, rootDir?: string) =>
+    discoverProjects({ rootDir: rootDir ?? path.join(homedir(), "code") }),
   );
 
   mainWindow = createWindow();

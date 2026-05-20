@@ -117,6 +117,7 @@ export const desktopIpc = {
   projectsTouch: "pi-gui:projects-touch",
   projectsImportSingularity: "pi-gui:projects-import-singularity",
   addProjectWorkspace: "pi-gui:add-project-workspace",
+  projectsDiscover: "pi-gui:projects-discover",
 } as const;
 
 export const desktopCommands = {
