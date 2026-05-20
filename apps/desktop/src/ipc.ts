@@ -118,6 +118,10 @@ export const desktopIpc = {
   projectsImportSingularity: "pi-gui:projects-import-singularity",
   addProjectWorkspace: "pi-gui:add-project-workspace",
   projectsDiscover: "pi-gui:projects-discover",
+  diffRunExternalTool: "pi-gui:diff-run-external-tool",
+  branchCompareInfos: "pi-gui:branch-compare-infos",
+  branchCompareFiles: "pi-gui:branch-compare-files",
+  branchCompareDiff: "pi-gui:branch-compare-diff",
 } as const;
 
 export const desktopCommands = {
@@ -338,4 +342,6 @@ export interface PiDesktopApi {
   getResolvedTheme(): Promise<"light" | "dark">;
   setThemeMode(mode: "system" | "light" | "dark"): Promise<string>;
   onThemeChanged(callback: (theme: "light" | "dark") => void): () => void;
+  /** Opt-in: run an allow-listed external diff tool (e.g. delta, difftastic). */
+  runExternalDiffTool(toolPath: string, diffText: string): Promise<string>;
 }

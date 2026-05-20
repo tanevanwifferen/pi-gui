@@ -16,6 +16,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { DesktopAppStore } from "./app-store";
 import { getChangedFiles, getFileDiff, stageFile } from "./app-store-diff";
+import { getRepoBranchInfos, gitCrossBranchSource } from "./diff-sources/git-cross-branch";
 import { addProjectWorkspace } from "./app-store-workspace";
 import {
   listProjects,
@@ -27,6 +28,7 @@ import {
   importSingularity,
 } from "./app-store-projects";
 import { discoverProjects } from "./project-discovery";
+import { runExternalDiffTool } from "./external-diff-tool";
 import { homedir } from "node:os";
 import { listWorkspaceFiles } from "./app-store-files";
 import { MAIN_DEV_RELOAD_MARKER } from "./dev-reload-main-probe";
@@ -722,6 +724,39 @@ app.whenReady().then(async () => {
     }
     await stageFile(workspacePath, filePath);
   });
+  ipcMain.handle(desktopIpc.branchCompareInfos, (_e, workspaceId: string, featureBranch: string, baseBranch?: string) => {
+    const workspace = store.state.workspaces.find((w) => w.id === workspaceId);
+    if (!workspace) return [];
+    return getRepoBranchInfos({
+      workspaceId,
+      path: workspace.path,
+      repoPaths: workspace.repoPaths as string[] | undefined,
+      featureBranch,
+      baseBranch,
+    });
+  });
+  ipcMain.handle(desktopIpc.branchCompareFiles, (_e, workspaceId: string, featureBranch: string, baseBranch?: string) => {
+    const workspace = store.state.workspaces.find((w) => w.id === workspaceId);
+    if (!workspace) return [];
+    return gitCrossBranchSource.list({
+      workspaceId,
+      path: workspace.path,
+      repoPaths: workspace.repoPaths as string[] | undefined,
+      featureBranch,
+      baseBranch,
+    } as any);
+  });
+  ipcMain.handle(desktopIpc.branchCompareDiff, (_e, workspaceId: string, featureBranch: string, filePath: string, baseBranch?: string) => {
+    const workspace = store.state.workspaces.find((w) => w.id === workspaceId);
+    if (!workspace) return { text: "" };
+    return gitCrossBranchSource.read({
+      workspaceId,
+      path: workspace.path,
+      repoPaths: workspace.repoPaths as string[] | undefined,
+      featureBranch,
+      baseBranch,
+    } as any, filePath);
+  });
   ipcMain.handle(desktopIpc.toggleWindowMaximize, (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);
     if (!window) {
@@ -748,6 +783,10 @@ app.whenReady().then(async () => {
   );
   ipcMain.handle(desktopIpc.projectsDiscover, (_e, rootDir?: string) =>
     discoverProjects({ rootDir: rootDir ?? path.join(homedir(), "code") }),
+  );
+  ipcMain.handle(
+    desktopIpc.diffRunExternalTool,
+    (_e, toolPath: string, diffText: string) => runExternalDiffTool(toolPath, diffText),
   );
 
   mainWindow = createWindow();

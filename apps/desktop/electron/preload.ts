@@ -285,4 +285,12 @@ contextBridge.exposeInMainWorld("piApp", {
     ipcRenderer.invoke(desktopIpc.addProjectWorkspace, input) as Promise<import("../src/desktop-state").DesktopAppState>,
   discoverProjects: (rootDir?: string) =>
     ipcRenderer.invoke(desktopIpc.projectsDiscover, rootDir) as Promise<import("./project-discovery").DiscoveredProject[]>,
+  runExternalDiffTool: (toolPath: string, diffText: string) =>
+    ipcRenderer.invoke(desktopIpc.diffRunExternalTool, toolPath, diffText) as Promise<string>,
+  branchCompareInfos: (workspaceId: string, featureBranch: string, baseBranch?: string) =>
+    ipcRenderer.invoke(desktopIpc.branchCompareInfos, workspaceId, featureBranch, baseBranch),
+  branchCompareFiles: (workspaceId: string, featureBranch: string, baseBranch?: string) =>
+    ipcRenderer.invoke(desktopIpc.branchCompareFiles, workspaceId, featureBranch, baseBranch),
+  branchCompareDiff: (workspaceId: string, featureBranch: string, filePath: string, baseBranch?: string) =>
+    ipcRenderer.invoke(desktopIpc.branchCompareDiff, workspaceId, featureBranch, filePath, baseBranch),
 });

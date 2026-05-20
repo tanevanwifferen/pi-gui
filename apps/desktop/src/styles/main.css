@@ -3702,3 +3702,21 @@ mark.thread-find-active {
 .worktree-progress__icon--error { font-size: 28px; }
 .worktree-progress__error { font-size: 12px; color: var(--error, #d32f2f); max-width: 300px; word-break: break-word; }
 .worktree-progress__actions { display: flex; gap: 8px; }
+
+/* branch-compare-panel */
+.branch-compare-panel { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+.branch-compare-panel__controls { display: flex; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.branch-compare-panel__input { flex: 1; min-width: 160px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; background: transparent; color: inherit; }
+.branch-compare-panel__error { padding: 8px 16px; color: var(--error, #d32f2f); font-size: 12px; }
+.branch-compare-panel__repo-summary { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--border); }
+.branch-compare-panel__repo { display: flex; gap: 6px; font-size: 12px; align-items: center; }
+.branch-compare-panel__repo--missing { opacity: 0.5; }
+.branch-compare-panel__repo-name { font-weight: 600; }
+.branch-compare-panel__repo-stat { opacity: 0.7; }
+.branch-compare-panel__repo-missing { font-style: italic; opacity: 0.5; }
+.branch-compare-panel__body { display: flex; flex: 1; overflow: hidden; }
+.branch-compare-panel__file-list { list-style: none; margin: 0; padding: 6px; min-width: 200px; overflow-y: auto; border-right: 1px solid var(--border); }
+.branch-compare-panel__file-btn { width: 100%; text-align: left; padding: 4px 8px; border-radius: 4px; border: none; background: none; cursor: pointer; font-size: 11px; color: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.branch-compare-panel__file-btn--active { background: var(--accent, #007aff); color: white; }
+.branch-compare-panel__diff { flex: 1; overflow: hidden; }
+.branch-compare-panel__empty { padding: 32px; text-align: center; opacity: 0.5; font-size: 13px; }
