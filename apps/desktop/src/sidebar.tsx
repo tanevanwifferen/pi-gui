@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AddProjectModal } from "./add-project-modal";
 import {
   DndContext,
   DragOverlay,
@@ -70,6 +71,7 @@ export function Sidebar(props: SidebarProps) {
   } = props;
 
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [showAddProjectModal, setShowAddProjectModal] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   // Collision detection based on workspace row headers only (~30px top of each group),
@@ -180,6 +182,14 @@ export function Sidebar(props: SidebarProps) {
             >
               <FolderIcon />
             </button>
+            <button
+              className="sidebar-add-project-btn"
+              title="Add project workspace"
+              type="button"
+              onClick={() => setShowAddProjectModal(true)}
+            >
+              Add project
+            </button>
           </div>
         </div>
 
@@ -254,6 +264,13 @@ export function Sidebar(props: SidebarProps) {
           </DndContext>
         )}
       </div>
+      {showAddProjectModal && (
+        <AddProjectModal
+          api={api}
+          onClose={() => setShowAddProjectModal(false)}
+          onAdded={(state) => setSnapshot(state)}
+        />
+      )}
     </aside>
   );
 }

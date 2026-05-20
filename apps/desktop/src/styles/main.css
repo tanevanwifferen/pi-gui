@@ -3386,3 +3386,195 @@ mark.thread-find-active {
   background: rgba(224, 84, 103, 0.12);
   border-color: rgba(224, 84, 103, 0.2);
 }
+
+/* ── Add-project modal ─────────────────────────────────── */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 36;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(24, 31, 44, 0.3);
+  backdrop-filter: blur(10px);
+}
+
+.modal-dialog {
+  width: min(520px, 100%);
+  max-height: min(640px, calc(100vh - 48px));
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  background: #fff;
+  border: 1px solid #dfe4ee;
+  box-shadow: 0 28px 80px rgba(22, 29, 41, 0.16);
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid #edf0f7;
+  flex-shrink: 0;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 640;
+  color: var(--text-strong);
+}
+
+.modal-close-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 18px;
+  color: var(--muted-strong);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.modal-close-btn:hover {
+  background: #f0f2f8;
+  color: var(--text-strong);
+}
+
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 20px 20px;
+}
+
+.modal-loading,
+.modal-empty {
+  padding: 24px 0;
+  color: var(--muted-strong);
+  font-size: 14px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.modal-error {
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  background: rgba(224, 84, 103, 0.08);
+  border: 1px solid rgba(224, 84, 103, 0.18);
+  color: #c0394e;
+  font-size: 13px;
+}
+
+.project-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.project-list-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #e1e6ef;
+  background: #f9fafc;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  color: var(--text-strong);
+  transition: background 80ms, border-color 80ms;
+}
+
+.project-list-item:hover:not(:disabled) {
+  background: #f0f4fb;
+  border-color: #cfd7ea;
+}
+
+.project-list-item:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.project-list-item__name {
+  font-size: 14px;
+  font-weight: 520;
+}
+
+.project-list-item__meta {
+  font-size: 12px;
+  color: var(--muted-strong);
+}
+
+/* Sidebar add-project trigger button */
+.sidebar-add-project-btn {
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid #d6daea;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 520;
+  color: var(--muted-strong);
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1.6;
+}
+
+.sidebar-add-project-btn:hover {
+  background: #f0f2f8;
+  color: var(--text-strong);
+}
+
+/* Dark mode */
+:root.dark .modal-dialog {
+  background: #1e2330;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+:root.dark .modal-header {
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+:root.dark .modal-title {
+  color: var(--text-strong);
+}
+
+:root.dark .modal-close-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:root.dark .modal-error {
+  background: rgba(224, 84, 103, 0.12);
+  border-color: rgba(224, 84, 103, 0.2);
+  color: #f08090;
+}
+
+:root.dark .project-list-item {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+:root.dark .project-list-item:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+:root.dark .sidebar-add-project-btn {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+:root.dark .sidebar-add-project-btn:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
