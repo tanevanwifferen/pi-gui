@@ -45,6 +45,7 @@ import { useWorkspaceMenu } from "./hooks/use-workspace-menu";
 import { buildExtensionDockModel, ExtensionDialog, hasExtensionDockContent } from "./extension-session-ui";
 import { TreeModal } from "./tree-modal";
 import { QuickSwitcher } from "./quick-switcher";
+import { WorktreeCreationProgress } from "./worktree-creation-progress";
 import { getEffectiveModelRuntime } from "./model-settings";
 import { resolveRepoWorkspaceId } from "./workspace-roots";
 import {
@@ -167,6 +168,10 @@ export default function App() {
   const [newThreadThinkingLevel, setNewThreadThinkingLevel] = useState<string | undefined>();
   const [newThreadComposerError, setNewThreadComposerError] = useState<string | undefined>();
   const [newThreadWorktreeId, setNewThreadWorktreeId] = useState<string | undefined>();
+  const [worktreeProgress, setWorktreeProgress] = useState<
+    | { repoCount: number; state: "creating" | "done" | "failed"; error?: string }
+    | undefined
+  >(undefined);
   const [themeMode, setThemeMode] = useState<"system" | "light" | "dark">("system");
   const [notificationPermissionStatus, setNotificationPermissionStatus] =
     useState<DesktopNotificationPermissionStatus>("unknown");
@@ -1778,6 +1783,25 @@ export default function App() {
       ...modelConfig,
     };
     wsMenu.expandWorkspace(newThreadRootWorkspaceId);
+    const repoPaths = newThreadWorkspace?.repoPaths ?? [];
+    if (newThreadEnvironment === "worktree" && !newThreadWorktreeId && repoPaths.length > 1) {
+      setWorktreeProgress({ repoCount: repoPaths.length, state: "creating" });
+      void updateSnapshot(api, setSnapshot, () =>
+        api.startThread(input),
+      ).then(() => {
+        setWorktreeProgress(undefined);
+        setNewThreadPrompt("");
+        setNewThreadAttachments([]);
+        setNewThreadProvider(undefined);
+        setNewThreadModelId(undefined);
+        setNewThreadThinkingLevel(undefined);
+        setNewThreadEnvironment("local");
+        setNewThreadWorktreeId(undefined);
+      }).catch((err: unknown) => {
+        setWorktreeProgress({ repoCount: repoPaths.length, state: "failed", error: String(err) });
+      });
+      return;
+    }
     void updateSnapshot(api, setSnapshot, () =>
       api.startThread(input),
     ).then(() => {
@@ -2293,6 +2317,15 @@ export default function App() {
           onSelectSession={(workspaceId, sessionId) => {
             void updateSnapshot(api!, setSnapshot, () => api!.selectSession({ workspaceId, sessionId }));
           }}
+        />
+      )}
+      {worktreeProgress && (
+        <WorktreeCreationProgress
+          repoCount={worktreeProgress.repoCount}
+          state={worktreeProgress.state}
+          error={worktreeProgress.error}
+          onRetry={worktreeProgress.state === "failed" ? () => { handleStartThread(); } : undefined}
+          onDismiss={() => setWorktreeProgress(undefined)}
         />
       )}
     </div>
