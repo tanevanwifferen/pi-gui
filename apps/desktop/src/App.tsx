@@ -29,6 +29,7 @@ import {
 import { deriveModelOnboardingState } from "./model-onboarding";
 import { SkillsView } from "./skills-view";
 import { ExtensionsView } from "./extensions-view";
+import { WorktreesView } from "./worktrees-view";
 import { SettingsView, type SettingsSection } from "./settings-view";
 import { SecondarySurface } from "./secondary-surface";
 import { NewThreadView } from "./new-thread-view";
@@ -158,6 +159,7 @@ export default function App() {
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState("");
   const [skillsWorkspaceId, setSkillsWorkspaceId] = useState("");
   const [extensionsWorkspaceId, setExtensionsWorkspaceId] = useState("");
+  const [worktreesWorkspaceId, setWorktreesWorkspaceId] = useState("");
   const [pendingNewThreadWorkspaceId, setPendingNewThreadWorkspaceId] = useState("");
   const [newThreadRootWorkspaceId, setNewThreadRootWorkspaceId] = useState("");
   const [newThreadEnvironment, setNewThreadEnvironment] = useState<NewThreadEnvironment>("local");
@@ -338,6 +340,9 @@ export default function App() {
     : undefined;
   const extensionsWorkspace = extensionsWorkspaceId
     ? rootWorkspaceOptions.find((workspace) => workspace.id === extensionsWorkspaceId)
+    : undefined;
+  const worktreesWorkspace = worktreesWorkspaceId
+    ? rootWorkspaceOptions.find((workspace) => workspace.id === worktreesWorkspaceId)
     : undefined;
   const settingsRuntime = settingsWorkspace ? snapshot?.runtimeByWorkspace[settingsWorkspace.id] : undefined;
   const settingsModelRuntime = snapshot ? getEffectiveModelRuntime(snapshot, settingsWorkspace) : undefined;
@@ -1356,6 +1361,17 @@ export default function App() {
     setActiveView("extensions");
   };
 
+  const openWorktrees = (workspaceId?: string) => {
+    const nextWorkspaceId =
+      workspaceId && rootWorkspaceOptions.some((workspace) => workspace.id === workspaceId)
+        ? workspaceId
+        : worktreesWorkspace?.id || rootWorkspaceOptions[0]?.id || "";
+    if (nextWorkspaceId) {
+      setWorktreesWorkspaceId(nextWorkspaceId);
+    }
+    setActiveView("worktrees");
+  };
+
   const openNewThreadSurface = (workspaceId?: string) => {
     setPendingNewThreadWorkspaceId("");
     resetNewThreadSurface(workspaceId);
@@ -2044,6 +2060,48 @@ export default function App() {
     );
   }
 
+  if (snapshot.activeView === "worktrees") {
+    const worktreesWorktrees = worktreesWorkspace
+      ? snapshot.worktreesByWorkspace[worktreesWorkspace.id] ?? []
+      : [];
+    const worktreesThreadGroup = threadGroups.find(
+      (g) => g.rootWorkspace.id === worktreesWorkspace?.id,
+    );
+    return (
+      <SecondarySurface onBack={() => setActiveView("threads")} testId="worktrees-surface" title="Worktrees">
+        <div className="surface-toolbar">
+          <label className="surface-toolbar__field">
+            <span>Workspace</span>
+            <select
+              value={worktreesWorkspace?.id ?? ""}
+              onChange={(event) => setWorktreesWorkspaceId(event.target.value)}
+            >
+              {rootWorkspaceOptions.map((workspace) => (
+                <option key={workspace.id} value={workspace.id}>
+                  {workspace.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <WorktreesView
+          workspace={worktreesWorkspace}
+          worktrees={worktreesWorktrees}
+          threadGroup={worktreesThreadGroup}
+          onRemoveWorktree={(worktreeId) => {
+            if (!worktreesWorkspace) return;
+            void updateSnapshot(api, setSnapshot, () =>
+              api.removeWorktree({ workspaceId: worktreesWorkspace.id, worktreeId }),
+            );
+          }}
+          onArchiveThread={(target) => {
+            void updateSnapshot(api, setSnapshot, () => api.archiveSession(target));
+          }}
+        />
+      </SecondarySurface>
+    );
+  }
+
   const shellClassName = `shell${snapshot.sidebarCollapsed ? " shell--sidebar-collapsed" : ""}`;
 
   return (
@@ -2072,6 +2130,7 @@ export default function App() {
           onOpenSkills={openSkills}
           onOpenExtensions={openExtensions}
           onOpenSettings={openSettings}
+          onOpenWorktrees={openWorktrees}
           onArchiveSession={handleArchiveSession}
           onSelectSession={handleSelectSession}
           onUnarchiveSession={handleUnarchiveSession}

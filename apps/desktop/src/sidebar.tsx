@@ -47,6 +47,7 @@ interface SidebarProps {
   readonly onOpenSkills: (workspaceId?: string) => void;
   readonly onOpenExtensions: (workspaceId?: string) => void;
   readonly onOpenSettings: (workspaceId?: string) => void;
+  readonly onOpenWorktrees: (workspaceId?: string) => void;
   readonly onArchiveSession: (target: { workspaceId: string; sessionId: string }) => void;
   readonly onSelectSession: (target: { workspaceId: string; sessionId: string }) => void;
   readonly onUnarchiveSession: (target: { workspaceId: string; sessionId: string }) => void;
@@ -69,6 +70,7 @@ export function Sidebar(props: SidebarProps) {
     onOpenSkills,
     onOpenExtensions,
     onOpenSettings,
+    onOpenWorktrees,
     onArchiveSession,
     onSelectSession,
     onUnarchiveSession,
@@ -189,6 +191,14 @@ export function Sidebar(props: SidebarProps) {
           >
             <ExtensionIcon />
             <span>Extensions</span>
+          </button>
+          <button
+            className={`sidebar__nav-item ${activeView === "worktrees" ? "sidebar__nav-item--active" : ""}`}
+            type="button"
+            onClick={() => onOpenWorktrees(selectedWorkspace?.rootWorkspaceId ?? selectedWorkspace?.id)}
+          >
+            <WorktreeIcon />
+            <span>Worktrees</span>
           </button>
           <button
             className="sidebar__nav-item"
