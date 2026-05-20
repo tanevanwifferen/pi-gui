@@ -13,5 +13,5 @@
     "types": ["node", "electron"]
   },
   "include": ["electron/**/*.ts", "src/**/*.ts"],
-  "exclude": ["dist", "dist-electron", "out", "node_modules", "src/dev-reload-hook.ts", "src/hooks"]
+  "exclude": ["dist", "dist-electron", "out", "node_modules", "src/dev-reload-hook.ts", "src/hooks", "src/diff-viewers"]
 }
