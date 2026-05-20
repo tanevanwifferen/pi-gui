@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AddProjectModal } from "./add-project-modal";
 import {
   DndContext,
@@ -14,6 +14,10 @@ import {
 } from "@dnd-kit/core";
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+// Set to true to enable the project-grouped sidebar view (pi-gui-vl4).
+// When false, the sidebar renders exactly as before (zero regression for single-repo users).
+const ENABLE_PROJECT_SIDEBAR = true;
+
 import type { AppView, SessionRecord, WorkspaceRecord, WorktreeRecord } from "./desktop-state";
 import { ArchiveIcon, ChevronDownIcon, ExtensionIcon, FolderIcon, PlusIcon, RestoreIcon, SettingsIcon, SkillIcon, WorktreeIcon } from "./icons";
 import type { PiDesktopApi } from "./ipc";
@@ -72,7 +76,15 @@ export function Sidebar(props: SidebarProps) {
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showAddProjectModal, setShowAddProjectModal] = useState(false);
+  const [projects, setProjects] = useState<any[]>([]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  useEffect(() => {
+    if (!ENABLE_PROJECT_SIDEBAR) return;
+    (api as any).listProjects()
+      .then((p: any[]) => setProjects(p))
+      .catch(() => setProjects([]));
+  }, [api]);
 
   // Collision detection based on workspace row headers only (~30px top of each group),
   // not the full group height including all sessions.
@@ -97,6 +109,27 @@ export function Sidebar(props: SidebarProps) {
   const orphanGroups = threadGroups.filter((g) => g.rootWorkspace.kind !== "primary");
   const rootGroupIds = rootGroups.map((g) => g.rootWorkspace.id);
   const canDrag = rootGroups.length > 1;
+
+  // Derived grouped workspace lists (only used when ENABLE_PROJECT_SIDEBAR is true)
+  const projectWorkspaces = ENABLE_PROJECT_SIDEBAR
+    ? visibleWorkspaces.filter(
+        (w) => w.kind === "project" || (w.projectKey && w.projectKey.length > 0),
+      )
+    : [];
+  const unfiledWorkspaces = ENABLE_PROJECT_SIDEBAR
+    ? visibleWorkspaces.filter((w) => w.kind !== "project" && !w.projectKey)
+    : [];
+  const pinnedIds = new Set(projects.filter((p) => p.pinned).map((p) => p.key));
+  const pinnedWorkspaces = projectWorkspaces
+    .filter((w) => w.projectKey && pinnedIds.has(w.projectKey))
+    .slice(0, 5);
+  const pinnedSet = new Set(pinnedWorkspaces.map((w) => w.id));
+  const recentWorkspaces = projectWorkspaces
+    .filter((w) => !pinnedSet.has(w.id))
+    .sort((a, b) => (b.lastOpenedAt ?? "").localeCompare(a.lastOpenedAt ?? ""))
+    .slice(0, 8);
+  const showGroupedView =
+    ENABLE_PROJECT_SIDEBAR && projectWorkspaces.length > 0;
 
   function handleDragStart(event: DragStartEvent) {
     setActiveId(String(event.active.id));
@@ -209,40 +242,117 @@ export function Sidebar(props: SidebarProps) {
           </div>
         ) : (
           <DndContext sensors={sensors} collisionDetection={headerCollision} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-            <SortableContext items={rootGroupIds} strategy={verticalListSortingStrategy}>
-              <div className="workspace-list" data-testid="workspace-list">
-                {rootGroups.map((group) => (
-                  <SortableWorkspaceGroup
-                    key={group.rootWorkspace.id}
-                    group={group}
-                    canDrag={canDrag}
-                    selectedWorkspace={selectedWorkspace}
-                    selectedSession={selectedSession}
-                    linkedWorktreeByWorkspaceId={linkedWorktreeByWorkspaceId}
-                    wsMenu={wsMenu}
-                    api={api}
-                    onArchiveSession={onArchiveSession}
-                    onSelectSession={onSelectSession}
-                    onUnarchiveSession={onUnarchiveSession}
-                  />
-                ))}
-                {orphanGroups.map((group) => (
-                  <WorkspaceGroupContent
-                    key={group.rootWorkspace.id}
-                    group={group}
-                    canDrag={false}
-                    selectedWorkspace={selectedWorkspace}
-                    selectedSession={selectedSession}
-                    linkedWorktreeByWorkspaceId={linkedWorktreeByWorkspaceId}
-                    wsMenu={wsMenu}
-                    api={api}
-                    onArchiveSession={onArchiveSession}
-                    onSelectSession={onSelectSession}
-                    onUnarchiveSession={onUnarchiveSession}
-                  />
-                ))}
+            {showGroupedView ? (
+              <div className="workspace-list sidebar-projects" data-testid="workspace-list">
+                {pinnedWorkspaces.length > 0 && (
+                  <>
+                    <div className="sidebar-section-header">Pinned</div>
+                    {pinnedWorkspaces.map((ws) => {
+                      const group = threadGroups.find((g) => g.rootWorkspace.id === ws.id);
+                      if (!group) return null;
+                      return (
+                        <SortableWorkspaceGroup
+                          key={ws.id}
+                          group={group}
+                          canDrag={false}
+                          selectedWorkspace={selectedWorkspace}
+                          selectedSession={selectedSession}
+                          linkedWorktreeByWorkspaceId={linkedWorktreeByWorkspaceId}
+                          wsMenu={wsMenu}
+                          api={api}
+                          onArchiveSession={onArchiveSession}
+                          onSelectSession={onSelectSession}
+                          onUnarchiveSession={onUnarchiveSession}
+                        />
+                      );
+                    })}
+                  </>
+                )}
+                {recentWorkspaces.length > 0 && (
+                  <>
+                    <div className="sidebar-section-header">Recent projects</div>
+                    {recentWorkspaces.map((ws) => {
+                      const group = threadGroups.find((g) => g.rootWorkspace.id === ws.id);
+                      if (!group) return null;
+                      return (
+                        <SortableWorkspaceGroup
+                          key={ws.id}
+                          group={group}
+                          canDrag={false}
+                          selectedWorkspace={selectedWorkspace}
+                          selectedSession={selectedSession}
+                          linkedWorktreeByWorkspaceId={linkedWorktreeByWorkspaceId}
+                          wsMenu={wsMenu}
+                          api={api}
+                          onArchiveSession={onArchiveSession}
+                          onSelectSession={onSelectSession}
+                          onUnarchiveSession={onUnarchiveSession}
+                        />
+                      );
+                    })}
+                  </>
+                )}
+                {unfiledWorkspaces.length > 0 && (
+                  <>
+                    <div className="sidebar-section-header">Unfiled</div>
+                    {unfiledWorkspaces.map((ws) => {
+                      const group = threadGroups.find((g) => g.rootWorkspace.id === ws.id);
+                      if (!group) return null;
+                      return (
+                        <SortableWorkspaceGroup
+                          key={ws.id}
+                          group={group}
+                          canDrag={false}
+                          selectedWorkspace={selectedWorkspace}
+                          selectedSession={selectedSession}
+                          linkedWorktreeByWorkspaceId={linkedWorktreeByWorkspaceId}
+                          wsMenu={wsMenu}
+                          api={api}
+                          onArchiveSession={onArchiveSession}
+                          onSelectSession={onSelectSession}
+                          onUnarchiveSession={onUnarchiveSession}
+                        />
+                      );
+                    })}
+                  </>
+                )}
               </div>
-            </SortableContext>
+            ) : (
+              <SortableContext items={rootGroupIds} strategy={verticalListSortingStrategy}>
+                <div className="workspace-list" data-testid="workspace-list">
+                  {rootGroups.map((group) => (
+                    <SortableWorkspaceGroup
+                      key={group.rootWorkspace.id}
+                      group={group}
+                      canDrag={canDrag}
+                      selectedWorkspace={selectedWorkspace}
+                      selectedSession={selectedSession}
+                      linkedWorktreeByWorkspaceId={linkedWorktreeByWorkspaceId}
+                      wsMenu={wsMenu}
+                      api={api}
+                      onArchiveSession={onArchiveSession}
+                      onSelectSession={onSelectSession}
+                      onUnarchiveSession={onUnarchiveSession}
+                    />
+                  ))}
+                  {orphanGroups.map((group) => (
+                    <WorkspaceGroupContent
+                      key={group.rootWorkspace.id}
+                      group={group}
+                      canDrag={false}
+                      selectedWorkspace={selectedWorkspace}
+                      selectedSession={selectedSession}
+                      linkedWorktreeByWorkspaceId={linkedWorktreeByWorkspaceId}
+                      wsMenu={wsMenu}
+                      api={api}
+                      onArchiveSession={onArchiveSession}
+                      onSelectSession={onSelectSession}
+                      onUnarchiveSession={onUnarchiveSession}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            )}
             <DragOverlay>
               {activeGroup ? (
                 <div className="workspace-group workspace-group--overlay">

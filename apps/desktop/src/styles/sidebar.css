@@ -154,6 +154,20 @@
   gap: 14px;
 }
 
+.sidebar-projects {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-section-header {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.4;
+  padding: 12px 16px 4px;
+}
+
 .workspace-group {
   display: grid;
   gap: 3px;
