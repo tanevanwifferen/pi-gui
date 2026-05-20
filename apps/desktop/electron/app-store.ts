@@ -93,6 +93,8 @@ import { GitWorktreeManager } from "./worktree-manager";
 import * as workspace from "./app-store-workspace";
 import * as worktree from "./app-store-worktree";
 import * as composer from "./app-store-composer";
+import { ProjectCatalogStore } from "./project-catalog";
+import { importFromSingularity } from "./singularity-importer";
 import { isSessionActivelyViewed } from "./session-visibility";
 
 type StateListener = (state: DesktopAppState) => void;
@@ -135,6 +137,7 @@ export class DesktopAppStore implements AppStoreInternals {
   readonly driver: PiSdkDriver;
   readonly catalogStore: JsonCatalogStore;
   readonly worktreeManager: GitWorktreeManager;
+  readonly projectCatalog: ProjectCatalogStore;
   private readonly uiStateFilePath: string;
   private readonly transcriptStore: JsonFileStore<PersistedTranscriptStoreValue>;
   readonly attachmentStore: JsonFileStore<ComposerAttachment[]>;
@@ -163,6 +166,7 @@ export class DesktopAppStore implements AppStoreInternals {
     this.driver = new PiSdkDriver(driverOptions);
     this.catalogStore = new JsonCatalogStore({ catalogFilePath });
     this.worktreeManager = new GitWorktreeManager({ catalogStorage: this.catalogStore });
+    this.projectCatalog = new ProjectCatalogStore(options.userDataDir);
     this.uiStateFilePath = join(options.userDataDir, "ui-state.json");
     this.transcriptStore = new JsonFileStore<PersistedTranscriptStoreValue>(options.userDataDir, "transcripts");
     this.attachmentStore = new JsonFileStore<ComposerAttachment[]>(options.userDataDir, "attachments");
@@ -793,6 +797,7 @@ export class DesktopAppStore implements AppStoreInternals {
         hydrateSelectedSession: false,
       });
       this.startSelectedSessionHydration(this.selectedSessionRef());
+      importFromSingularity(this.projectCatalog).catch(() => undefined);
     } catch (error) {
       this.state = {
         ...createEmptyDesktopAppState(),

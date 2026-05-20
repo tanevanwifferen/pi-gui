@@ -109,6 +109,13 @@ export const desktopIpc = {
   themeChanged: "pi-gui:theme-changed",
   ping: "app:ping",
   openExternal: "app:open-external",
+  projectsList: "pi-gui:projects-list",
+  projectsCreate: "pi-gui:projects-create",
+  projectsUpdate: "pi-gui:projects-update",
+  projectsDelete: "pi-gui:projects-delete",
+  projectsPin: "pi-gui:projects-pin",
+  projectsTouch: "pi-gui:projects-touch",
+  projectsImportSingularity: "pi-gui:projects-import-singularity",
 } as const;
 
 export const desktopCommands = {

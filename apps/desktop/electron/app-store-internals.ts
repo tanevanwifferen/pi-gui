@@ -15,6 +15,7 @@ import type { PendingAutoTitle, QueuedComposerEditState, SessionStateMap } from 
 import type { GitWorktreeManager } from "./worktree-manager";
 import type { JsonFileStore } from "./json-file-store";
 import type { PendingRuntimeCommandExecution } from "./extension-command-compatibility";
+import type { ProjectCatalogStore } from "./project-catalog";
 
 /**
  * Internal interface shared by method-group files
@@ -34,6 +35,7 @@ export interface AppStoreInternals {
   readonly catalogStore: JsonCatalogStore;
   readonly worktreeManager: GitWorktreeManager;
   readonly attachmentStore: JsonFileStore<ComposerAttachment[]>;
+  readonly projectCatalog: ProjectCatalogStore;
 
   /* ── Shared helpers (called by extracted method groups) ── */
   initialize(): Promise<void>;

@@ -16,6 +16,15 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { DesktopAppStore } from "./app-store";
 import { getChangedFiles, getFileDiff, stageFile } from "./app-store-diff";
+import {
+  listProjects,
+  createProject,
+  updateProject,
+  deleteProject,
+  pinProject,
+  touchProject,
+  importSingularity,
+} from "./app-store-projects";
 import { listWorkspaceFiles } from "./app-store-files";
 import { MAIN_DEV_RELOAD_MARKER } from "./dev-reload-main-probe";
 import { NotificationManager } from "./notification-manager";
@@ -723,6 +732,14 @@ app.whenReady().then(async () => {
 
     window.maximize();
   });
+
+  ipcMain.handle(desktopIpc.projectsList, () => listProjects(store));
+  ipcMain.handle(desktopIpc.projectsCreate, (_e, record) => createProject(store, record));
+  ipcMain.handle(desktopIpc.projectsUpdate, (_e, id, patch) => updateProject(store, id, patch));
+  ipcMain.handle(desktopIpc.projectsDelete, (_e, id) => deleteProject(store, id));
+  ipcMain.handle(desktopIpc.projectsPin, (_e, id, pinned) => pinProject(store, id, pinned));
+  ipcMain.handle(desktopIpc.projectsTouch, (_e, id) => touchProject(store, id));
+  ipcMain.handle(desktopIpc.projectsImportSingularity, () => importSingularity(store));
 
   mainWindow = createWindow();
   notificationManager.trackWindow(mainWindow);

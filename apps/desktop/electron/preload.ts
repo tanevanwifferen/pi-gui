@@ -267,4 +267,18 @@ contextBridge.exposeInMainWorld("piApp", {
       ipcRenderer.removeListener(desktopIpc.themeChanged, handler);
     };
   },
+  listProjects: () =>
+    ipcRenderer.invoke(desktopIpc.projectsList) as Promise<import("./project-catalog").ProjectRecord[]>,
+  createProject: (record: Omit<import("./project-catalog").ProjectRecord, "id">) =>
+    ipcRenderer.invoke(desktopIpc.projectsCreate, record),
+  updateProject: (id: string, patch: object) =>
+    ipcRenderer.invoke(desktopIpc.projectsUpdate, id, patch),
+  deleteProject: (id: string) =>
+    ipcRenderer.invoke(desktopIpc.projectsDelete, id),
+  pinProject: (id: string, pinned: boolean) =>
+    ipcRenderer.invoke(desktopIpc.projectsPin, id, pinned),
+  touchProject: (id: string) =>
+    ipcRenderer.invoke(desktopIpc.projectsTouch, id),
+  importSingularity: () =>
+    ipcRenderer.invoke(desktopIpc.projectsImportSingularity) as Promise<{ imported: number; skipped: number }>,
 });
