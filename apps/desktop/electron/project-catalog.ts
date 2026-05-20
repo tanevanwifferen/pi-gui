@@ -19,6 +19,7 @@ export interface ProjectDefaults {
 
 export interface DiffViewerConfig {
   readonly viewerId?: string;
+  readonly overrides?: Readonly<Record<string, string>>; // file extension -> viewer id
 }
 
 export interface ProjectRecord {

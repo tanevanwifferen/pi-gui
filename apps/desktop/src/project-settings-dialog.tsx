@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import type { PiDesktopApi } from "./ipc";
+import { listDiffViewers } from "./diff-viewers/index";
 
 // Inline ProjectRecord type (avoid electron-side import)
 interface ProjectRecord {
@@ -19,10 +20,10 @@ interface ProjectRecord {
   contextFiles: readonly string[];
   source: string;
   lastOpenedAt?: string;
-  diffViewer?: { viewerId?: string };
+  diffViewer?: { viewerId?: string; overrides?: Record<string, string> };
 }
 
-type Tab = "general" | "repos" | "advanced";
+type Tab = "general" | "repos" | "diff" | "advanced";
 
 interface ProjectSettingsDialogProps {
   readonly projectId: string;
@@ -43,6 +44,10 @@ export function ProjectSettingsDialog({ projectId, api, onClose, onUpdated }: Pr
   const [color, setColor] = useState("");
   const [defaultThinking, setDefaultThinking] = useState<string>("off");
   const [approvalPolicy, setApprovalPolicy] = useState<string>("ask");
+  const [defaultViewerId, setDefaultViewerId] = useState<string>("inline");
+  const [extOverrides, setExtOverrides] = useState<Record<string, string>>({});
+  const [newExt, setNewExt] = useState("");
+  const [newViewerId, setNewViewerId] = useState("inline");
 
   useEffect(() => {
     setLoading(true);
@@ -55,6 +60,8 @@ export function ProjectSettingsDialog({ projectId, api, onClose, onUpdated }: Pr
         setColor(p.color ?? "");
         setDefaultThinking(p.defaults?.thinking ?? "off");
         setApprovalPolicy(p.defaults?.approvalPolicy ?? "ask");
+        setDefaultViewerId(p.diffViewer?.viewerId ?? "inline");
+        setExtOverrides(p.diffViewer?.overrides ? { ...p.diffViewer.overrides } : {});
         setLoading(false);
       })
       .catch((e: unknown) => { setError(String(e)); setLoading(false); });
@@ -72,6 +79,10 @@ export function ProjectSettingsDialog({ projectId, api, onClose, onUpdated }: Pr
           ...project.defaults,
           thinking: defaultThinking as NonNullable<ProjectRecord["defaults"]>["thinking"],
           approvalPolicy: approvalPolicy as NonNullable<ProjectRecord["defaults"]>["approvalPolicy"],
+        },
+        diffViewer: {
+          viewerId: defaultViewerId,
+          overrides: extOverrides,
         },
       };
       const updated = await (api as any).updateProject(project.id, patch);
@@ -93,14 +104,14 @@ export function ProjectSettingsDialog({ projectId, api, onClose, onUpdated }: Pr
         </div>
 
         <nav className="modal-tabs">
-          {(["general", "repos", "advanced"] as Tab[]).map((t) => (
+          {(["general", "repos", "diff", "advanced"] as Tab[]).map((t) => (
             <button
               key={t}
               className={`modal-tab ${tab === t ? "modal-tab--active" : ""}`}
               onClick={() => setTab(t)}
               type="button"
             >
-              {t.charAt(0).toUpperCase() + t.slice(1)}
+              {t === "diff" ? "Diff viewer" : t.charAt(0).toUpperCase() + t.slice(1)}
             </button>
           ))}
         </nav>
@@ -202,6 +213,102 @@ export function ProjectSettingsDialog({ projectId, api, onClose, onUpdated }: Pr
                         </div>
                       ))
                     )}
+                  </div>
+                </div>
+              )}
+
+              {tab === "diff" && (
+                <div className="settings-section">
+                  <h3 className="settings-section__title">Diff viewer</h3>
+                  <div className="settings-group">
+                    <div className="settings-row">
+                      <div className="settings-row__label">
+                        <div className="settings-row__title">Default viewer</div>
+                        <div className="settings-row__description">Applied to all file types unless overridden below</div>
+                      </div>
+                      <div className="settings-row__control">
+                        <select
+                          className="settings-select"
+                          value={defaultViewerId}
+                          onChange={(e) => setDefaultViewerId(e.target.value)}
+                        >
+                          {listDiffViewers().map((v) => (
+                            <option key={v.id} value={v.id}>{v.displayName}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <h3 className="settings-section__title" style={{ marginTop: 16 }}>Per-extension overrides</h3>
+                  <div className="settings-group">
+                    {Object.entries(extOverrides).length === 0 && (
+                      <div className="modal-empty" style={{ fontSize: 12 }}>No overrides. Add one below.</div>
+                    )}
+                    {Object.entries(extOverrides).map(([ext, vid]) => (
+                      <div key={ext} className="settings-row">
+                        <div className="settings-row__label">
+                          <div className="settings-row__title">{ext}</div>
+                        </div>
+                        <div className="settings-row__control">
+                          <select
+                            className="settings-select"
+                            value={vid}
+                            onChange={(e) => setExtOverrides((prev) => ({ ...prev, [ext]: e.target.value }))}
+                          >
+                            {listDiffViewers().map((v) => (
+                              <option key={v.id} value={v.id}>{v.displayName}</option>
+                            ))}
+                          </select>
+                          <button
+                            className="button button--secondary"
+                            style={{ marginLeft: 8, padding: "2px 8px", fontSize: 12 }}
+                            onClick={() => setExtOverrides((prev) => {
+                              const next = { ...prev };
+                              delete next[ext];
+                              return next;
+                            })}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="settings-row">
+                      <div className="settings-row__label">
+                        <div className="settings-row__title">Add override</div>
+                      </div>
+                      <div className="settings-row__control" style={{ gap: 8, display: "flex" }}>
+                        <input
+                          className="settings-input"
+                          type="text"
+                          placeholder=".md"
+                          value={newExt}
+                          onChange={(e) => setNewExt(e.target.value)}
+                          style={{ width: 80 }}
+                        />
+                        <select
+                          className="settings-select"
+                          value={newViewerId}
+                          onChange={(e) => setNewViewerId(e.target.value)}
+                        >
+                          {listDiffViewers().map((v) => (
+                            <option key={v.id} value={v.id}>{v.displayName}</option>
+                          ))}
+                        </select>
+                        <button
+                          className="button button--secondary"
+                          onClick={() => {
+                            const ext = newExt.trim().startsWith(".") ? newExt.trim() : "." + newExt.trim();
+                            if (!ext || ext === ".") return;
+                            setExtOverrides((prev) => ({ ...prev, [ext]: newViewerId }));
+                            setNewExt("");
+                          }}
+                        >
+                          Add
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
