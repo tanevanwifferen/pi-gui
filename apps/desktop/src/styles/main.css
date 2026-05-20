@@ -2038,6 +2038,18 @@
   color: var(--text-strong);
 }
 
+.new-thread__worktree-select {
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid #dfe4ee;
+  background: #f8f9fc;
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 560;
+  cursor: pointer;
+}
+
 .new-thread__textarea {
   min-height: 120px;
   resize: vertical;
@@ -3245,6 +3257,12 @@ mark.thread-find-active {
   background: rgba(124, 107, 245, 0.12);
 }
 
+:root.dark .new-thread__worktree-select {
+  border-color: var(--line);
+  background: var(--surface-muted);
+  color: var(--text-strong);
+}
+
 :root.dark .skill-card,
 :root.dark .skill-detail {
   border-color: var(--line);
@@ -3578,3 +3596,26 @@ mark.thread-find-active {
 :root.dark .sidebar-add-project-btn:hover {
   background: rgba(255, 255, 255, 0.07);
 }
+
+/* Image diff viewer */
+.diff-image-viewer { display: flex; gap: 16px; padding: 16px; flex-wrap: wrap; }
+.diff-image-viewer--fallback { flex-direction: column; align-items: center; padding: 32px; gap: 8px; }
+.diff-image-viewer__pane { flex: 1; min-width: 200px; }
+.diff-image-viewer__label { font-size: 11px; font-weight: 600; opacity: 0.6; margin-bottom: 8px; }
+.diff-image-viewer__img { max-width: 100%; border: 1px solid var(--border); border-radius: 4px; }
+.diff-image-viewer__absent { padding: 32px; text-align: center; opacity: 0.5; }
+.diff-image-viewer__icon { font-size: 32px; }
+.diff-image-viewer__name { font-weight: 600; }
+.diff-image-viewer__status { opacity: 0.7; }
+.diff-image-viewer__raw { font-size: 11px; opacity: 0.5; max-height: 100px; overflow: hidden; }
+
+/* Markdown diff viewer */
+.diff-markdown-viewer { display: flex; gap: 0; height: 100%; }
+.diff-markdown-viewer__pane { flex: 1; overflow-y: auto; padding: 16px; border-right: 1px solid var(--border); }
+.diff-markdown-viewer__pane:last-child { border-right: none; }
+.diff-markdown-viewer__label { font-size: 11px; font-weight: 600; opacity: 0.6; margin-bottom: 12px; }
+.diff-markdown-viewer__content h1,
+.diff-markdown-viewer__content h2,
+.diff-markdown-viewer__content h3 { margin-top: 0; }
+.diff-markdown-viewer__content code { background: var(--code-bg, rgba(0,0,0,.05)); padding: 1px 4px; border-radius: 3px; }
+.diff-markdown-viewer__content pre { background: var(--code-bg); padding: 12px; border-radius: 6px; overflow-x: auto; }
