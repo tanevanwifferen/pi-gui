@@ -44,6 +44,7 @@ import { useThreadSearch } from "./hooks/use-thread-search";
 import { useWorkspaceMenu } from "./hooks/use-workspace-menu";
 import { buildExtensionDockModel, ExtensionDialog, hasExtensionDockContent } from "./extension-session-ui";
 import { TreeModal } from "./tree-modal";
+import { QuickSwitcher } from "./quick-switcher";
 import { getEffectiveModelRuntime } from "./model-settings";
 import { resolveRepoWorkspaceId } from "./workspace-roots";
 import {
@@ -165,6 +166,7 @@ export default function App() {
   const [newThreadModelId, setNewThreadModelId] = useState<string | undefined>();
   const [newThreadThinkingLevel, setNewThreadThinkingLevel] = useState<string | undefined>();
   const [newThreadComposerError, setNewThreadComposerError] = useState<string | undefined>();
+  const [newThreadWorktreeId, setNewThreadWorktreeId] = useState<string | undefined>();
   const [themeMode, setThemeMode] = useState<"system" | "light" | "dark">("system");
   const [notificationPermissionStatus, setNotificationPermissionStatus] =
     useState<DesktopNotificationPermissionStatus>("unknown");
@@ -196,6 +198,7 @@ export default function App() {
   const previousActiveViewRef = useRef<AppView | null>(null);
   const hydratedComposerSessionKeyRef = useRef("");
   const handledComposerSyncNonceRef = useRef(0);
+  const [showQuickSwitcher, setShowQuickSwitcher] = useState(false);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const [showDiffPanel, setShowDiffPanel] = useState(false);
   const [openTerminalSessionKeys, setOpenTerminalSessionKeys] = useState<ReadonlySet<string>>(() => new Set());
@@ -943,6 +946,7 @@ export default function App() {
     setNewThreadModelId(undefined);
     setNewThreadThinkingLevel(undefined);
     setNewThreadComposerError(undefined);
+    setNewThreadWorktreeId(undefined);
   };
 
   const primarySidebarToggleVisible = canTogglePrimarySidebar(snapshot?.activeView);
@@ -992,6 +996,12 @@ export default function App() {
           event.preventDefault();
           handleCommand(command);
         }
+        return;
+      }
+      // Cmd+K opens quick switcher
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k" && !event.shiftKey) {
+        event.preventDefault();
+        setShowQuickSwitcher((prev) => !prev);
         return;
       }
       // Cmd+F toggles thread search
@@ -1355,6 +1365,7 @@ export default function App() {
     setNewThreadModelId(undefined);
     setNewThreadThinkingLevel(undefined);
     setNewThreadComposerError(undefined);
+    setNewThreadWorktreeId(undefined);
   };
 
   const submitComposerDraft = (options: { readonly deliverAs?: "steer" | "followUp" } = {}) => {
@@ -1763,6 +1774,7 @@ export default function App() {
     const input: StartThreadInput = {
       rootWorkspaceId: newThreadRootWorkspaceId,
       environment: newThreadEnvironment,
+      ...(newThreadWorktreeId ? { existingWorktreeId: newThreadWorktreeId } : {}),
       ...modelConfig,
     };
     wsMenu.expandWorkspace(newThreadRootWorkspaceId);
@@ -1775,6 +1787,7 @@ export default function App() {
       setNewThreadModelId(undefined);
       setNewThreadThinkingLevel(undefined);
       setNewThreadEnvironment("local");
+      setNewThreadWorktreeId(undefined);
     });
   };
 
@@ -2073,6 +2086,8 @@ export default function App() {
               selectedWorkspaceId={newThreadRootWorkspaceId || rootWorkspaceOptions[0]?.id || ""}
               runtime={newThreadRuntime}
               environment={newThreadEnvironment}
+              worktrees={snapshot.worktreesByWorkspace[newThreadWorkspace?.id ?? ""] ?? []}
+              selectedWorktreeId={newThreadWorktreeId}
               prompt={newThreadPrompt}
               attachments={newThreadAttachments}
               lastError={newThreadComposerError}
@@ -2094,7 +2109,8 @@ export default function App() {
               mentionOptions={newThreadMentionMenu.mentionOptions}
               selectedMentionIndex={newThreadMentionMenu.selectedIndex}
               onChangePrompt={setNewThreadPrompt}
-              onSelectEnvironment={setNewThreadEnvironment}
+              onSelectEnvironment={(env) => { setNewThreadEnvironment(env); if (env !== "worktree") setNewThreadWorktreeId(undefined); }}
+              onSelectWorktree={setNewThreadWorktreeId}
               onSelectWorkspace={handleSelectNewThreadWorkspace}
               onSetModel={(provider, modelId) => { setNewThreadProvider(provider); setNewThreadModelId(modelId); }}
               onSetThinking={setNewThreadThinkingLevel}
@@ -2266,6 +2282,19 @@ export default function App() {
           />
         ) : null}
       </main>
+      {showQuickSwitcher && snapshot && (
+        <QuickSwitcher
+          state={snapshot}
+          api={api!}
+          onClose={() => setShowQuickSwitcher(false)}
+          onSelectWorkspace={(workspaceId) => {
+            void updateSnapshot(api!, setSnapshot, () => api!.selectWorkspace(workspaceId));
+          }}
+          onSelectSession={(workspaceId, sessionId) => {
+            void updateSnapshot(api!, setSnapshot, () => api!.selectSession({ workspaceId, sessionId }));
+          }}
+        />
+      )}
     </div>
   );
 }
