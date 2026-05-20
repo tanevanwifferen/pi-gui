@@ -5,11 +5,40 @@ export type { SessionRole, TranscriptMessage } from "./timeline-types";
 import type { TranscriptMessage } from "./timeline-types";
 
 export type AppView = "threads" | "new-thread" | "skills" | "extensions" | "settings";
-export type WorkspaceKind = "primary" | "worktree";
+export type WorkspaceKind = "primary" | "worktree" | "project";
 export type WorktreeStatus = "ready" | "missing" | "error";
 export type NewThreadEnvironment = "local" | "worktree";
 export type ThemeMode = "system" | "light" | "dark";
 export type ModelSettingsScopeMode = "app-global" | "per-repo";
+export interface RepoDef {
+  readonly name: string;
+  readonly path: string;              // absolute, ~ already expanded
+  readonly defaultBranch?: string;
+  readonly role?: "root" | "sub";
+}
+
+export interface ProjectDef {
+  readonly name: string;
+  readonly repos: readonly RepoDef[];
+}
+
+export interface ProjectConfig {
+  readonly projects: Readonly<Record<string, ProjectDef>>;
+}
+
+export interface CreateProjectWorkspaceInput {
+  readonly projectKey: string;
+  readonly displayName: string;
+  readonly rootPath: string;           // path of the root repo (first/primary)
+  readonly repoPaths: readonly string[]; // all repo paths (including root)
+}
+
+export interface CreateProjectWorktreeInput {
+  readonly workspaceId: string;        // the project workspace to branch from
+  readonly branchName: string;
+  readonly fromSessionId?: string;
+}
+
 export type ComposerDraftSyncSource =
   | "state"
   | "selection"
@@ -128,6 +157,8 @@ export interface WorkspaceRecord {
   readonly rootWorkspaceId?: string;
   readonly branchName?: string;
   readonly sessions: readonly SessionRecord[];
+  readonly projectKey?: string;       // links to ProjectRecord.key
+  readonly repoPaths?: readonly string[];  // absolute paths of sub-repos (multi-repo)
 }
 
 export interface CreateWorktreeInput {
