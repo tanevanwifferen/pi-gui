@@ -358,10 +358,15 @@ function WorkspaceGroupContent(
           {...(dragHandleProps ? { ...dragHandleProps.attributes, ...dragHandleProps.listeners } : {})}
         >
           <span className="workspace-row__icon" aria-hidden="true" data-collapsed={isCollapsed || undefined}>
-            <span className="workspace-row__icon-folder"><FolderIcon /></span>
+            <span className="workspace-row__icon-folder" data-project={rootWorkspace.kind === "project" || undefined}><FolderIcon /></span>
             <span className="workspace-row__icon-chevron"><ChevronDownIcon /></span>
           </span>
           <span className="workspace-row__name">{rootWorkspace.name}</span>
+          {rootWorkspace.repoPaths && rootWorkspace.repoPaths.length > 1 && (
+            <span className="workspace-row__repo-count" title={`${rootWorkspace.repoPaths.length} repos`}>
+              {rootWorkspace.repoPaths.length}
+            </span>
+          )}
         </button>
         <span
           className="workspace-row__menu-wrap"
@@ -474,10 +479,12 @@ function WorkspaceGroupContent(
           <div className="session-list">
             {threads.map((thread) => {
               const active = thread.workspaceId === selectedWorkspace?.id && thread.session.id === selectedSession?.id;
+              const isMultiRepo = !!(rootWorkspace.repoPaths && rootWorkspace.repoPaths.length > 1);
               return (
                 <ThreadSessionRow
                   key={`${thread.workspaceId}:${thread.session.id}`}
                   active={active}
+                  isMultiRepo={isMultiRepo}
                   thread={thread}
                   onAction={() =>
                     onArchiveSession({
@@ -512,11 +519,13 @@ function WorkspaceGroupContent(
                   {archivedThreads.map((thread) => {
                     const active =
                       thread.workspaceId === selectedWorkspace?.id && thread.session.id === selectedSession?.id;
+                    const isMultiRepo = !!(rootWorkspace.repoPaths && rootWorkspace.repoPaths.length > 1);
                     return (
                       <ThreadSessionRow
                         key={`${thread.workspaceId}:${thread.session.id}`}
                         active={active}
                         archived
+                        isMultiRepo={isMultiRepo}
                         thread={thread}
                         onAction={() =>
                           onUnarchiveSession({
@@ -553,12 +562,14 @@ function sessionIndicatorVariant(thread: ThreadListEntry): "running" | "unseen" 
 function ThreadSessionRow({
   active,
   archived = false,
+  isMultiRepo = false,
   thread,
   onAction,
   onSelect,
 }: {
   readonly active: boolean;
   readonly archived?: boolean;
+  readonly isMultiRepo?: boolean;
   readonly thread: ThreadListEntry;
   readonly onAction: () => void;
   readonly onSelect: () => void;
@@ -587,6 +598,9 @@ function ThreadSessionRow({
           <span className="session-row__workspace-icon" aria-hidden="true" title="Worktree">
             <WorktreeIcon />
           </span>
+        ) : null}
+        {thread.environment.kind === "worktree" && isMultiRepo ? (
+          <span className="session-row__multi-repo-tag" title="Multi-repo project">multi</span>
         ) : null}
         <span className="session-row__time">{formatRelativeTime(thread.session.updatedAt)}</span>
         <button
