@@ -1,4 +1,5 @@
 import type { PiSdkDriver, JsonCatalogStore } from "@pi-gui/pi-sdk-driver";
+import type { PerWorkspaceState } from "./app-store-persistence";
 import type { CreateSessionOptions, SessionConfig, SessionRef, SessionSnapshot, WorkspaceRef } from "@pi-gui/session-driver";
 import type { RuntimeCommandRecord, RuntimeSnapshot } from "@pi-gui/session-driver/runtime-types";
 import type {
@@ -26,6 +27,7 @@ export interface AppStoreInternals {
   /* ── State ─────────────────────────────────────────────── */
   state: DesktopAppState;
   readonly sessionState: SessionStateMap;
+  readonly perWorkspaceUiState: Map<string, PerWorkspaceState>;
   readonly runtimeByWorkspace: Map<string, RuntimeSnapshot>;
   readonly extensionCommandCompatibilityByWorkspace: Map<string, Map<string, ExtensionCommandCompatibilityRecord>>;
   readonly pendingRuntimeCommandsBySession: Map<string, PendingRuntimeCommandExecution>;
@@ -61,6 +63,7 @@ export interface AppStoreInternals {
   clearExtensionUiForSession(sessionRef: SessionRef): void;
   cancelPendingDialogsForSession(sessionRef: SessionRef): Promise<void>;
   persistUiState(): Promise<void>;
+  setPerWorkspaceUiState(workspaceId: string, state: Partial<PerWorkspaceState>): void;
   persistComposerAttachments(key: string, attachments: readonly ComposerAttachment[]): Promise<void>;
   persistTranscriptCacheForSession(sessionRef: SessionRef): void;
   schedulePersistUiState(): void;

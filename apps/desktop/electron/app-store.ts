@@ -62,6 +62,7 @@ import {
   readPersistedUiState,
   type LegacyPersistedUiState,
   type PersistedUiState,
+  type PerWorkspaceState,
   writePersistedUiState,
 } from "./app-store-persistence";
 import { JsonFileStore } from "./json-file-store";
@@ -144,6 +145,7 @@ export class DesktopAppStore implements AppStoreInternals {
   readonly sessionState = new SessionStateMap();
   readonly runtimeByWorkspace = new Map<string, RuntimeSnapshot>();
   readonly extensionCommandCompatibilityByWorkspace = new Map<string, Map<string, ExtensionCommandCompatibilityRecord>>();
+  readonly perWorkspaceUiState = new Map<string, PerWorkspaceState>();
   readonly pendingRuntimeCommandsBySession = new Map<string, PendingRuntimeCommandExecution>();
   private readonly reportedCompatibilityIssuesBySession = new Map<string, Set<string>>();
   private readonly initialWorkspacePaths: readonly string[];
@@ -769,6 +771,12 @@ export class DesktopAppStore implements AppStoreInternals {
         persisted.extensionCommandCompatibilityByWorkspace,
       )) {
         this.extensionCommandCompatibilityByWorkspace.set(workspaceId, records);
+      }
+      this.perWorkspaceUiState.clear();
+      if (persisted.perWorkspaceUiState) {
+        for (const [k, v] of Object.entries(persisted.perWorkspaceUiState)) {
+          this.perWorkspaceUiState.set(k, v);
+        }
       }
       const initialWorkspacePaths = this.initialWorkspacePaths.map((path) => path.trim()).filter(Boolean);
       const knownWorkspaces = await this.driver.listWorkspaces();
@@ -1694,6 +1702,10 @@ export class DesktopAppStore implements AppStoreInternals {
       modelSettingsScopeMode: this.state.modelSettingsScopeMode,
       appGlobalModelSettings: hasStoredModelSettings(this.state.globalModelSettings) ? this.state.globalModelSettings : undefined,
       sidebarCollapsed: this.state.sidebarCollapsed || undefined,
+      perWorkspaceUiState:
+        this.perWorkspaceUiState.size > 0
+          ? Object.fromEntries(this.perWorkspaceUiState.entries())
+          : undefined,
     };
 
     await writePersistedUiState(this.uiStateFilePath, payload);
@@ -1789,6 +1801,12 @@ export class DesktopAppStore implements AppStoreInternals {
       this.persistUiStateTimer = undefined;
       void this.persistUiState();
     }, 250);
+  }
+
+  setPerWorkspaceUiState(workspaceId: string, partial: Partial<PerWorkspaceState>): void {
+    const existing = this.perWorkspaceUiState.get(workspaceId) ?? {};
+    this.perWorkspaceUiState.set(workspaceId, { ...existing, ...partial });
+    this.schedulePersistUiState();
   }
 
   private currentSelectedSessionKey(): string {

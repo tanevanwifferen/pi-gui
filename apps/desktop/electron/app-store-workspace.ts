@@ -96,12 +96,34 @@ export async function selectWorkspace(store: AppStoreInternals, workspaceId: str
 
   const currentSessionRef = store.selectedSessionRef();
   if (currentSessionRef && currentSessionRef.workspaceId !== workspaceId) {
+    // Save the session we're leaving before switching
+    if (store.state.selectedWorkspaceId && store.state.selectedSessionId) {
+      store.setPerWorkspaceUiState(store.state.selectedWorkspaceId, {
+        lastSessionId: store.state.selectedSessionId,
+      });
+    }
     await store.cancelPendingDialogsForSession(currentSessionRef);
+  }
+
+  // Determine which session to restore for the target workspace
+  let selectedSessionId: string | undefined;
+  if (store.state.selectedWorkspaceId === workspaceId) {
+    // Already on this workspace — keep the current selection
+    selectedSessionId = store.state.selectedSessionId;
+  } else {
+    const savedState = store.perWorkspaceUiState.get(workspaceId);
+    const restoredSessionId = savedState?.lastSessionId;
+    const isValidSession = (workspace.sessions ?? []).some(
+      (s) => s.id === restoredSessionId && !s.archivedAt,
+    );
+    selectedSessionId = isValidSession
+      ? restoredSessionId
+      : workspace.sessions.find((s) => !s.archivedAt)?.id;
   }
 
   return syncWorkspace(store, workspaceId, {
     selectedWorkspaceId: workspaceId,
-    selectedSessionId: store.state.selectedWorkspaceId === workspaceId ? store.state.selectedSessionId : "",
+    selectedSessionId: selectedSessionId ?? "",
     clearLastError: true,
     refreshWorktrees: true,
     activeView: "threads",
@@ -118,6 +140,7 @@ export async function selectSession(store: AppStoreInternals, target: WorkspaceS
     await store.cancelPendingDialogsForSession(currentSessionRef);
   }
 
+  store.setPerWorkspaceUiState(target.workspaceId, { lastSessionId: target.sessionId });
   return store.selectSessionFast(target);
 }
 

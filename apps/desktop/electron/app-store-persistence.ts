@@ -10,6 +10,11 @@ import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
 const uiStateWriteQueueByPath = new Map<string, Promise<void>>();
+export interface PerWorkspaceState {
+  readonly lastSessionId?: string;
+  readonly lastDiffFile?: string;
+}
+
 export interface PersistedUiState {
   readonly version?: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
   readonly selectedWorkspaceId?: string;
@@ -25,6 +30,7 @@ export interface PersistedUiState {
   readonly modelSettingsScopeMode?: ModelSettingsScopeMode;
   readonly appGlobalModelSettings?: ModelSettingsSnapshot;
   readonly sidebarCollapsed?: boolean;
+  readonly perWorkspaceUiState?: Readonly<Record<string, PerWorkspaceState>>;
 }
 
 export interface LegacyPersistedUiState extends PersistedUiState {
@@ -72,6 +78,7 @@ export async function readPersistedUiState(uiStateFilePath: string): Promise<Leg
           : undefined,
       appGlobalModelSettings: toPersistedModelSettingsSnapshot(parsed.appGlobalModelSettings),
       sidebarCollapsed: parsed.sidebarCollapsed === true,
+      perWorkspaceUiState: parsed.perWorkspaceUiState,
       composerAttachmentsBySession: parsed.composerAttachmentsBySession,
       transcripts: parsed.transcripts,
     };
