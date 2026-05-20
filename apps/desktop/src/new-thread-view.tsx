@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ClipboardEvent, type DragEvent, type KeyboardEvent, type RefObject } from "react";
 import type { RuntimeSnapshot } from "@pi-gui/session-driver/runtime-types";
-import type { ComposerAttachment, NewThreadEnvironment, WorkspaceRecord } from "./desktop-state";
+import type { ComposerAttachment, NewThreadEnvironment, WorkspaceRecord, WorktreeRecord } from "./desktop-state";
 import { ArrowUpIcon, PiLogoMark, PlusIcon } from "./icons";
 import {
   MODEL_OPTIONS_EMPTY_TITLE,
@@ -19,6 +19,8 @@ interface NewThreadViewProps {
   readonly selectedWorkspaceId: string;
   readonly runtime?: RuntimeSnapshot;
   readonly environment: NewThreadEnvironment;
+  readonly worktrees: readonly WorktreeRecord[];
+  readonly selectedWorktreeId: string | undefined;
   readonly prompt: string;
   readonly attachments: readonly ComposerAttachment[];
   readonly lastError?: string;
@@ -42,6 +44,7 @@ interface NewThreadViewProps {
   readonly onChangePrompt: (prompt: string) => void;
   readonly onSelectEnvironment: (environment: NewThreadEnvironment) => void;
   readonly onSelectWorkspace: (workspaceId: string) => void;
+  readonly onSelectWorktree: (id: string | undefined) => void;
   readonly onSetModel: (provider: string, modelId: string) => void;
   readonly onSetThinking: (level: string) => void;
   readonly onOpenModelSettings: (section: ModelOnboardingSettingsSection) => void;
@@ -62,6 +65,8 @@ export function NewThreadView({
   selectedWorkspaceId,
   runtime,
   environment,
+  worktrees,
+  selectedWorktreeId,
   prompt,
   attachments,
   lastError,
@@ -85,6 +90,7 @@ export function NewThreadView({
   onChangePrompt,
   onSelectEnvironment,
   onSelectWorkspace,
+  onSelectWorktree,
   onSetModel,
   onSetThinking,
   onOpenModelSettings,
@@ -197,6 +203,8 @@ export function NewThreadView({
                 <NewThreadComposerFooter
                   runtime={runtime}
                   environment={environment}
+                  worktrees={worktrees}
+                  selectedWorktreeId={selectedWorktreeId}
                   provider={provider}
                   modelId={modelId}
                   thinkingLevel={thinkingLevel}
@@ -204,6 +212,7 @@ export function NewThreadView({
                   hasContent={Boolean(prompt.trim() || attachments.length > 0)}
                   fileInputRef={fileInputRef}
                   onSelectEnvironment={onSelectEnvironment}
+                  onSelectWorktree={onSelectWorktree}
                   onSetModel={onSetModel}
                   onSetThinking={onSetThinking}
                   onAddAttachments={onAddAttachments}
@@ -221,6 +230,8 @@ export function NewThreadView({
 interface NewThreadComposerFooterProps {
   readonly runtime?: RuntimeSnapshot;
   readonly environment: NewThreadEnvironment;
+  readonly worktrees: readonly WorktreeRecord[];
+  readonly selectedWorktreeId: string | undefined;
   readonly provider: string | undefined;
   readonly modelId: string | undefined;
   readonly thinkingLevel: string | undefined;
@@ -228,6 +239,7 @@ interface NewThreadComposerFooterProps {
   readonly hasContent: boolean;
   readonly fileInputRef: RefObject<HTMLInputElement | null>;
   readonly onSelectEnvironment: (environment: NewThreadEnvironment) => void;
+  readonly onSelectWorktree: (id: string | undefined) => void;
   readonly onSetModel: (provider: string, modelId: string) => void;
   readonly onSetThinking: (level: string) => void;
   readonly onAddAttachments: (files: File[]) => void;
@@ -237,6 +249,8 @@ interface NewThreadComposerFooterProps {
 function NewThreadComposerFooter({
   runtime,
   environment,
+  worktrees,
+  selectedWorktreeId,
   provider,
   modelId,
   thinkingLevel,
@@ -244,11 +258,14 @@ function NewThreadComposerFooter({
   hasContent,
   fileInputRef,
   onSelectEnvironment,
+  onSelectWorktree,
   onSetModel,
   onSetThinking,
   onAddAttachments,
   onSubmit,
 }: NewThreadComposerFooterProps) {
+  const readyWorktrees = worktrees.filter((wt) => wt.status === "ready" && Boolean(wt.linkedWorkspaceId));
+
   return (
     <>
       <div className="composer__footer">
@@ -270,6 +287,25 @@ function NewThreadComposerFooter({
                 <span>Worktree</span>
               </button>
             </div>
+            {environment === "worktree" && readyWorktrees.length > 0 ? (
+              <>
+                <span className="new-thread__hint-separator">·</span>
+                <label className="sr-only" htmlFor="new-thread-worktree-select">Worktree</label>
+                <select
+                  id="new-thread-worktree-select"
+                  className="new-thread__worktree-select"
+                  value={selectedWorktreeId ?? ""}
+                  onChange={(event) => onSelectWorktree(event.target.value || undefined)}
+                >
+                  <option value="">New worktree</option>
+                  {readyWorktrees.map((wt) => (
+                    <option key={wt.id} value={wt.id}>
+                      {wt.name}{wt.branchName ? ` (${wt.branchName})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </>
+            ) : null}
             <span className="new-thread__hint-separator">·</span>
             <ModelSelector
               runtime={runtime}

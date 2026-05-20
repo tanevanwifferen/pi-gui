@@ -170,6 +170,8 @@ export interface CreateWorktreeInput {
 export type StartThreadInput = {
   readonly rootWorkspaceId: string;
   readonly environment: NewThreadEnvironment;
+  /** When environment is "worktree", reuse this existing worktree instead of creating a new one. */
+  readonly existingWorktreeId?: string;
   readonly prompt?: string;
   readonly attachments?: readonly ComposerAttachment[];
   readonly provider?: string;
