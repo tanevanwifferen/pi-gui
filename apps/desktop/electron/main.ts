@@ -162,6 +162,24 @@ function createWindow(): BrowserWindow {
       window.show();
     }
   });
+  window.webContents.on("context-menu", (_event, params) => {
+    const menuItems: MenuItemConstructorOptions[] = [];
+    if (params.selectionText) {
+      menuItems.push({ role: "copy", label: "Copy" });
+    }
+    if (params.isEditable) {
+      if (params.selectionText) {
+        menuItems.push({ role: "cut", label: "Cut" });
+      }
+      menuItems.push({ role: "paste", label: "Paste" });
+      menuItems.push({ type: "separator" });
+      menuItems.push({ role: "selectAll", label: "Select All" });
+    }
+    if (menuItems.length > 0) {
+      Menu.buildFromTemplate(menuItems).popup({ window });
+    }
+  });
+
   window.webContents.on("before-input-event", (event, input) => {
     if (input.type !== "keyDown") {
       return;
