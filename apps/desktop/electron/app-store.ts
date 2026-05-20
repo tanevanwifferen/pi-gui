@@ -78,6 +78,7 @@ import {
 import {
   buildWorktreeRecords,
   buildWorkspaceRecords,
+  overlayProjectData,
   cloneComposerAttachment,
   cloneComposerAttachments,
   cloneTranscriptMessage,
@@ -91,7 +92,7 @@ import {
 import { resolveRepoWorkspaceId } from "../src/workspace-roots";
 import { SessionStateMap, type QueuedComposerEditState } from "./session-state-map";
 import { createEmptyExtensionUiState, serializeExtensionUiState } from "./session-state-map";
-import { GitWorktreeManager } from "./worktree-manager";
+import { GitWorktreeManager, checkUnmergedChanges } from "./worktree-manager";
 import * as workspace from "./app-store-workspace";
 import * as worktree from "./app-store-worktree";
 import * as composer from "./app-store-composer";
@@ -892,16 +893,31 @@ export class DesktopAppStore implements AppStoreInternals {
         await this.ensureComposerAttachmentsLoaded(sessionRef);
       }
 
-      const workspaces = buildWorkspaceRecords(
-        workspacesSnapshot.workspaces,
-        worktreeEntries,
-        sessionsSnapshot.sessions,
-        this.sessionState.transcriptCache,
-        this.sessionState.runningSinceBySession,
-        this.sessionState.sessionConfigBySession,
-        this.sessionState.lastViewedAtBySession,
+      const [projects, baseWorkspaces] = await Promise.all([
+        this.projectCatalog.list().catch(() => [] as import("./project-catalog").ProjectRecord[]),
+        Promise.resolve(
+          buildWorkspaceRecords(
+            workspacesSnapshot.workspaces,
+            worktreeEntries,
+            sessionsSnapshot.sessions,
+            this.sessionState.transcriptCache,
+            this.sessionState.runningSinceBySession,
+            this.sessionState.sessionConfigBySession,
+            this.sessionState.lastViewedAtBySession,
+          ),
+        ),
+      ]);
+      const workspaces = overlayProjectData(baseWorkspaces, projects);
+      const linkedWorktreePaths = worktreeEntries
+        .filter((wt) => wt.kind === "linked" && wt.status === "ready")
+        .map((wt) => wt.path);
+      const unmergedResults = await Promise.allSettled(
+        linkedWorktreePaths.map((p) => checkUnmergedChanges(p)),
       );
-      const worktreesByWorkspace = buildWorktreeRecords(workspacesSnapshot.workspaces, worktreeEntries);
+      const unmergedByPath = new Map<string, boolean>(
+        linkedWorktreePaths.map((p, i) => [p, unmergedResults[i]?.status === "fulfilled" ? unmergedResults[i].value : false]),
+      );
+      const worktreesByWorkspace = buildWorktreeRecords(workspacesSnapshot.workspaces, worktreeEntries, unmergedByPath);
       const liveWorkspaceIds = new Set(workspaces.map((w) => w.id));
       for (const wsId of this.runtimeByWorkspace.keys()) {
         if (!liveWorkspaceIds.has(wsId)) {

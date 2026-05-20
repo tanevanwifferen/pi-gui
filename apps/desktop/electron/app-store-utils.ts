@@ -11,8 +11,41 @@ import type {
   WorkspaceRecord,
   WorkspaceSessionTarget,
 } from "../src/desktop-state";
+import type { ProjectRecord } from "./project-catalog";
 
 export const LEGACY_TRANSCRIPT_HISTORY_LIMIT = 180;
+
+/**
+ * Overlays project catalog metadata (projectKey, repoPaths, kind) onto workspace records
+ * by matching each workspace path to the root repo of a project.
+ * Only multi-repo projects (repos.length > 1) get repoPaths set; all matched projects
+ * get projectKey and kind="project".
+ */
+export function overlayProjectData(
+  workspaces: WorkspaceRecord[],
+  projects: readonly ProjectRecord[],
+): WorkspaceRecord[] {
+  const rootPathToProject = new Map<string, ProjectRecord>();
+  for (const project of projects) {
+    const rootRepo = project.repos.find((r) => r.role === "root") ?? project.repos[0];
+    if (rootRepo) {
+      rootPathToProject.set(rootRepo.path, project);
+    }
+  }
+
+  return workspaces.map((workspace) => {
+    const project = rootPathToProject.get(workspace.path);
+    if (!project) return workspace;
+    return {
+      ...workspace,
+      kind: "project" as const,
+      projectKey: project.key,
+      ...(project.repos.length > 1
+        ? { repoPaths: project.repos.map((r) => r.path) }
+        : {}),
+    };
+  });
+}
 
 export function mapToRecord<V>(map: Map<string, V>): Record<string, V> {
   return Object.fromEntries(map.entries());
@@ -62,6 +95,7 @@ export function buildWorkspaceRecords(
 export function buildWorktreeRecords(
   workspaces: readonly WorkspaceCatalogEntry[],
   worktrees: readonly WorktreeCatalogEntry[],
+  unmergedByPath: ReadonlyMap<string, boolean> = new Map(),
 ): Record<string, readonly WorktreeRecord[]> {
   const workspaceRoots = resolveWorkspaceRoots(workspaces, worktrees);
   const linkedWorkspaceIdsByPath = new Map(workspaces.map((workspace) => [workspace.path, workspace.workspaceId] as const));
@@ -87,6 +121,9 @@ export function buildWorktreeRecords(
       status: worktree.status,
       branchName: worktree.branchName,
       updatedAt: worktree.updatedAt,
+      ...(unmergedByPath.has(worktree.path)
+        ? { hasUnmergedChanges: unmergedByPath.get(worktree.path) }
+        : {}),
     };
     const existing = groups.get(worktree.workspaceId);
     if (existing) {

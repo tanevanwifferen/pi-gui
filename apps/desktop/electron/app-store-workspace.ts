@@ -300,9 +300,11 @@ export async function addProjectWorkspace(
     return store.emit();
   }
 
-  // Check if this project workspace already exists
+  // Check if this project workspace already exists (matched via path or projectKey overlay)
   const existing = store.state.workspaces.find(
-    (w) => w.kind === "project" && w.projectKey === input.projectKey,
+    (w) =>
+      (w.kind === "project" || w.kind === "primary") &&
+      (w.projectKey === input.projectKey || w.path === normalizedRoot),
   );
   if (existing) {
     return syncWorkspace(store, existing.id, {
