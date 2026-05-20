@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { basename, join } from "node:path";
+import { MultiRepoWorktreeManager } from "./multi-repo-worktree-manager";
 import { homedir } from "node:os";
 import { sessionKey } from "@pi-gui/pi-sdk-driver";
 import type { WorktreeCatalogEntry } from "@pi-gui/catalogs";
@@ -17,6 +18,29 @@ export async function createWorktree(store: AppStoreInternals, input: CreateWork
   const rootWorkspace = store.workspaceRefFromState(input.workspaceId);
   if (!rootWorkspace) {
     return store.withError(`Unknown workspace: ${input.workspaceId}`);
+  }
+
+  // Get full workspace record to check for multi-repo project
+  const rootWorkspaceRecord = store.state.workspaces.find((w) => w.id === input.workspaceId);
+
+  if (rootWorkspaceRecord?.repoPaths && rootWorkspaceRecord.repoPaths.length > 0) {
+    return store.withErrorHandling(async () => {
+      const repos = rootWorkspaceRecord.repoPaths!.map((repoPath, index) => ({
+        name: basename(repoPath),
+        path: repoPath,
+        workspaceId: `${rootWorkspace.workspaceId}-repo-${index}`,
+      }));
+
+      const manager = new MultiRepoWorktreeManager(store.catalogStore);
+      const branchName = `worktree-${Date.now()}`;
+      await manager.createWorktreeSet({
+        projectKey: rootWorkspaceRecord.projectKey ?? rootWorkspaceRecord.id,
+        branchName,
+        repos,
+      });
+
+      return store.refreshState({ refreshWorktrees: true });
+    });
   }
 
   return store.withErrorHandling(async () => {

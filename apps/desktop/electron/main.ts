@@ -16,6 +16,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { DesktopAppStore } from "./app-store";
 import { getChangedFiles, getFileDiff, stageFile } from "./app-store-diff";
+import { addProjectWorkspace } from "./app-store-workspace";
 import {
   listProjects,
   createProject,
@@ -740,6 +741,9 @@ app.whenReady().then(async () => {
   ipcMain.handle(desktopIpc.projectsPin, (_e, id, pinned) => pinProject(store, id, pinned));
   ipcMain.handle(desktopIpc.projectsTouch, (_e, id) => touchProject(store, id));
   ipcMain.handle(desktopIpc.projectsImportSingularity, () => importSingularity(store));
+  ipcMain.handle(desktopIpc.addProjectWorkspace, (_e, input) =>
+    addProjectWorkspace(store, input),
+  );
 
   mainWindow = createWindow();
   notificationManager.trackWindow(mainWindow);

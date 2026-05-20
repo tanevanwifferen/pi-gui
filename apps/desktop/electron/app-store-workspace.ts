@@ -1,5 +1,5 @@
 import { sessionKey } from "@pi-gui/pi-sdk-driver";
-import type { CreateSessionInput, DesktopAppState, WorkspaceSessionTarget } from "../src/desktop-state";
+import type { CreateProjectWorkspaceInput, CreateSessionInput, DesktopAppState, WorkspaceSessionTarget } from "../src/desktop-state";
 import { toSessionRef } from "./app-store-utils";
 import type { AppStoreInternals, RefreshStateOptions } from "./app-store-internals";
 import { NEW_THREAD_PLACEHOLDER_TITLE } from "./thread-title-constants";
@@ -264,5 +264,65 @@ export async function syncWorkspace(
   return store.withErrorHandling(async () => {
     await store.driver.syncWorkspace(workspace.path, workspace.name);
     return store.refreshState(refreshOptions);
+  });
+}
+
+export async function addProjectWorkspace(
+  store: AppStoreInternals,
+  input: CreateProjectWorkspaceInput,
+): Promise<DesktopAppState> {
+  await store.initialize();
+  const normalizedRoot = input.rootPath.trim();
+  if (!normalizedRoot) {
+    return store.emit();
+  }
+
+  // Check if this project workspace already exists
+  const existing = store.state.workspaces.find(
+    (w) => w.kind === "project" && w.projectKey === input.projectKey,
+  );
+  if (existing) {
+    return syncWorkspace(store, existing.id, {
+      selectedWorkspaceId: existing.id,
+      selectedSessionId: store.state.selectedSessionId,
+      clearLastError: true,
+      refreshWorktrees: true,
+    });
+  }
+
+  return store.withErrorHandling(async () => {
+    const hadNoWorkspaces = store.state.workspaces.length === 0;
+
+    // Sync the root repo as the primary workspace
+    const synced = await store.driver.syncWorkspace(normalizedRoot, input.displayName);
+    const firstSession = synced.sessions[0];
+    if (firstSession) {
+      await store.ensureSessionReady(firstSession.sessionRef);
+    }
+    if (hadNoWorkspaces) {
+      const snapshot = await store.driver.runtimeSupervisor.refreshRuntime(synced.workspace);
+      store.runtimeByWorkspace.set(synced.workspace.workspaceId, snapshot);
+    }
+
+    // Touch lastOpenedAt in the project catalog
+    await store.projectCatalog
+      .list()
+      .then((projects) => {
+        const project = projects.find((p) => p.key === input.projectKey);
+        if (project) {
+          void store.projectCatalog.upsert({
+            ...project,
+            lastOpenedAt: new Date().toISOString(),
+          });
+        }
+      })
+      .catch(() => undefined);
+
+    return store.refreshState({
+      selectedWorkspaceId: synced.workspace.workspaceId,
+      selectedSessionId: firstSession?.sessionRef.sessionId,
+      clearLastError: true,
+      refreshWorktrees: true,
+    });
   });
 }

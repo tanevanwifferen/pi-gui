@@ -281,4 +281,6 @@ contextBridge.exposeInMainWorld("piApp", {
     ipcRenderer.invoke(desktopIpc.projectsTouch, id),
   importSingularity: () =>
     ipcRenderer.invoke(desktopIpc.projectsImportSingularity) as Promise<{ imported: number; skipped: number }>,
+  addProjectWorkspace: (input: import("../src/desktop-state").CreateProjectWorkspaceInput) =>
+    ipcRenderer.invoke(desktopIpc.addProjectWorkspace, input) as Promise<import("../src/desktop-state").DesktopAppState>,
 });
