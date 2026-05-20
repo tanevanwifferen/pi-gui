@@ -379,6 +379,20 @@
   background: transparent;
 }
 
+.workspace-row__new-window-btn {
+  opacity: 0;
+  transition: opacity 0.1s;
+  font-size: 14px;
+}
+
+.workspace-row:hover .workspace-row__new-window-btn {
+  opacity: 0.7;
+}
+
+.workspace-row__new-window-btn:hover {
+  opacity: 1 !important;
+}
+
 .workspace-menu {
   position: absolute;
   top: calc(100% + 8px);
