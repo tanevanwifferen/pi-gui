@@ -11,6 +11,8 @@ export interface ThreadListEntry {
   readonly workspaceId: string;
   readonly session: SessionRecord;
   readonly environment: ThreadEnvironmentMeta;
+  /** Subagent sessions spawned by this session, recursively. */
+  readonly subthreads: readonly ThreadListEntry[];
 }
 
 export interface ThreadGroup {
@@ -21,7 +23,7 @@ export interface ThreadGroup {
 
 export function buildThreadGroups(state: DesktopAppState): readonly ThreadGroup[] {
   const workspacesById = new Map(state.workspaces.map((workspace) => [workspace.id, workspace] as const));
-  const rootWorkspaces = state.workspaces.filter((workspace) => workspace.kind === "primary");
+  const rootWorkspaces = state.workspaces.filter((workspace) => workspace.kind === "primary" || workspace.kind === "project");
   const orphanWorktrees = state.workspaces.filter(
     (workspace) => workspace.kind === "worktree" && !workspacesById.has(workspace.rootWorkspaceId ?? ""),
   );
@@ -57,7 +59,7 @@ function buildRootGroup(
       Boolean(entry.workspace),
     );
 
-  const threads: ThreadListEntry[] = [
+  const flatEntries: Array<Omit<ThreadListEntry, "subthreads">> = [
     ...rootWorkspace.sessions.map((session) => ({
       workspaceId: rootWorkspace.id,
       session,
@@ -80,30 +82,68 @@ function buildRootGroup(
     ),
   ];
 
-  threads.sort((left, right) => {
+  flatEntries.sort((left, right) => {
     if (left.session.updatedAt !== right.session.updatedAt) {
       return right.session.updatedAt.localeCompare(left.session.updatedAt);
     }
     return left.session.title.localeCompare(right.session.title);
   });
 
+  const threads = buildSessionTree(flatEntries);
   return partitionThreads(rootWorkspace, threads);
 }
 
 function buildOrphanGroup(workspace: WorkspaceRecord): ThreadGroup {
-  return partitionThreads(
-    workspace,
-    workspace.sessions.map((session) => ({
-      workspaceId: workspace.id,
-      session,
-      environment: {
-        kind: "worktree",
-        label: workspace.name,
-        branchName: workspace.branchName,
-        detached: !workspace.branchName,
-      },
-    })),
-  );
+  const flat = workspace.sessions.map((session) => ({
+    workspaceId: workspace.id,
+    session,
+    environment: {
+      kind: "worktree" as const,
+      label: workspace.name,
+      branchName: workspace.branchName,
+      detached: !workspace.branchName,
+    },
+  }));
+  return partitionThreads(workspace, buildSessionTree(flat));
+}
+
+/**
+ * Given a flat list of entries (no subthreads yet), build a tree by attaching
+ * child sessions (those whose parentSessionId matches a sibling) recursively.
+ * Root entries — those with no parent within the group — are returned.
+ */
+function buildSessionTree(
+  entries: readonly Omit<ThreadListEntry, "subthreads">[],
+): ThreadListEntry[] {
+  const sessionIds = new Set(entries.map((e) => e.session.id));
+
+  // Group children by their parent session ID.
+  const childrenByParentId = new Map<string, Array<Omit<ThreadListEntry, "subthreads">>>();
+  const rootEntries: Array<Omit<ThreadListEntry, "subthreads">> = [];
+
+  for (const entry of entries) {
+    const parentId = entry.session.parentSessionId;
+    if (parentId && sessionIds.has(parentId)) {
+      let bucket = childrenByParentId.get(parentId);
+      if (!bucket) {
+        bucket = [];
+        childrenByParentId.set(parentId, bucket);
+      }
+      bucket.push(entry);
+    } else {
+      rootEntries.push(entry);
+    }
+  }
+
+  function buildEntry(entry: Omit<ThreadListEntry, "subthreads">): ThreadListEntry {
+    const children = childrenByParentId.get(entry.session.id) ?? [];
+    return {
+      ...entry,
+      subthreads: children.map(buildEntry),
+    };
+  }
+
+  return rootEntries.map(buildEntry);
 }
 
 function partitionThreads(rootWorkspace: WorkspaceRecord, entries: readonly ThreadListEntry[]): ThreadGroup {

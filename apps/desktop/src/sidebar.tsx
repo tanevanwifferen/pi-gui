@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { AddProjectModal } from "./add-project-modal";
 import {
   DndContext,
@@ -644,6 +644,10 @@ function WorkspaceGroupContent(
                   active={active}
                   isMultiRepo={isMultiRepo}
                   thread={thread}
+                  selectedWorkspace={selectedWorkspace}
+                  selectedSession={selectedSession}
+                  onArchiveSession={onArchiveSession}
+                  onSelectSession={onSelectSession}
                   onAction={() =>
                     onArchiveSession({
                       workspaceId: thread.workspaceId,
@@ -685,6 +689,10 @@ function WorkspaceGroupContent(
                         archived
                         isMultiRepo={isMultiRepo}
                         thread={thread}
+                        selectedWorkspace={selectedWorkspace}
+                        selectedSession={selectedSession}
+                        onArchiveSession={onArchiveSession}
+                        onSelectSession={onSelectSession}
                         onAction={() =>
                           onUnarchiveSession({
                             workspaceId: thread.workspaceId,
@@ -721,55 +729,111 @@ function ThreadSessionRow({
   active,
   archived = false,
   isMultiRepo = false,
+  depth = 0,
   thread,
+  selectedWorkspace,
+  selectedSession,
+  onArchiveSession,
+  onSelectSession,
   onAction,
   onSelect,
 }: {
   readonly active: boolean;
   readonly archived?: boolean;
   readonly isMultiRepo?: boolean;
+  readonly depth?: number;
   readonly thread: ThreadListEntry;
+  readonly selectedWorkspace: WorkspaceRecord | undefined;
+  readonly selectedSession: SessionRecord | undefined;
+  readonly onArchiveSession: (target: { workspaceId: string; sessionId: string }) => void;
+  readonly onSelectSession: (target: { workspaceId: string; sessionId: string }) => void;
   readonly onAction: () => void;
   readonly onSelect: () => void;
 }) {
+  const [subthreadsExpanded, setSubthreadsExpanded] = useState(false);
+  const hasSubthreads = thread.subthreads.length > 0;
   const indicatorVariant = sessionIndicatorVariant(thread);
+
+  const toggleSubthreads = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSubthreadsExpanded((prev) => !prev);
+  }, []);
+
   return (
-    <div
-      className={`session-row ${active ? "session-row--active" : ""}`}
-      data-sidebar-indicator={indicatorVariant}
-      data-session-id={thread.session.id}
-    >
-      <button className="session-row__select" onClick={onSelect} type="button">
-        <span className="session-row__leading" aria-hidden="true">
-          {indicatorVariant === "running" ? <span className="session-row__status session-row__status--running" /> : null}
-          {indicatorVariant === "unseen" ? <span className="session-row__status session-row__status--unseen" /> : null}
-        </span>
-        <span className="session-row__body">
-          <span className="session-row__title-line">
-            <span className="session-row__title">{thread.session.title}</span>
+    <>
+      <div
+        className={`session-row ${active ? "session-row--active" : ""}${depth > 0 ? " session-row--subthread" : ""}`}
+        data-sidebar-indicator={indicatorVariant}
+        data-session-id={thread.session.id}
+        style={depth > 0 ? { paddingLeft: `${8 + depth * 12}px` } : undefined}
+      >
+        <button className="session-row__select" onClick={onSelect} type="button">
+          <span className="session-row__leading" aria-hidden="true">
+            {indicatorVariant === "running" ? <span className="session-row__status session-row__status--running" /> : null}
+            {indicatorVariant === "unseen" ? <span className="session-row__status session-row__status--unseen" /> : null}
           </span>
-          {thread.session.preview ? <span className="session-row__preview">{thread.session.preview}</span> : null}
-        </span>
-      </button>
-      <span className="session-row__trailing">
-        {thread.environment.kind === "worktree" ? (
-          <span className="session-row__workspace-icon" aria-hidden="true" title="Worktree">
-            <WorktreeIcon />
+          <span className="session-row__body">
+            <span className="session-row__title-line">
+              <span className="session-row__title">{thread.session.title}</span>
+            </span>
+            {thread.session.preview ? <span className="session-row__preview">{thread.session.preview}</span> : null}
           </span>
-        ) : null}
-        {thread.environment.kind === "worktree" && isMultiRepo ? (
-          <span className="session-row__multi-repo-tag" title="Multi-repo project">multi</span>
-        ) : null}
-        <span className="session-row__time">{formatRelativeTime(thread.session.updatedAt)}</span>
-        <button
-          aria-label={`${archived ? "Restore" : "Archive"} ${thread.session.title}`}
-          className="icon-button session-row__action"
-          type="button"
-          onClick={onAction}
-        >
-          {archived ? <RestoreIcon /> : <ArchiveIcon />}
         </button>
-      </span>
-    </div>
+        <span className="session-row__trailing">
+          {thread.environment.kind === "worktree" ? (
+            <span className="session-row__workspace-icon" aria-hidden="true" title="Worktree">
+              <WorktreeIcon />
+            </span>
+          ) : null}
+          {thread.environment.kind === "worktree" && isMultiRepo ? (
+            <span className="session-row__multi-repo-tag" title="Multi-repo project">multi</span>
+          ) : null}
+          {hasSubthreads ? (
+            <button
+              aria-label={`${subthreadsExpanded ? "Collapse" : "Expand"} ${thread.subthreads.length} subagent${thread.subthreads.length !== 1 ? "s" : ""}`}
+              aria-expanded={subthreadsExpanded}
+              className="icon-button session-row__subthreads-toggle"
+              type="button"
+              onClick={toggleSubthreads}
+            >
+              <span className={`session-row__subthreads-chevron${subthreadsExpanded ? " session-row__subthreads-chevron--open" : ""}`}>
+                <ChevronDownIcon />
+              </span>
+              <span className="session-row__subthreads-count">{thread.subthreads.length}</span>
+            </button>
+          ) : null}
+          <span className="session-row__time">{formatRelativeTime(thread.session.updatedAt)}</span>
+          <button
+            aria-label={`${archived ? "Restore" : "Archive"} ${thread.session.title}`}
+            className="icon-button session-row__action"
+            type="button"
+            onClick={onAction}
+          >
+            {archived ? <RestoreIcon /> : <ArchiveIcon />}
+          </button>
+        </span>
+      </div>
+      {hasSubthreads && subthreadsExpanded ? (
+        <div className="session-row__subthreads">
+          {thread.subthreads.map((sub) => (
+            <ThreadSessionRow
+              key={`${sub.workspaceId}:${sub.session.id}`}
+              active={sub.workspaceId === selectedWorkspace?.id && sub.session.id === selectedSession?.id}
+              archived={archived}
+              isMultiRepo={isMultiRepo}
+              depth={depth + 1}
+              thread={sub}
+              selectedWorkspace={selectedWorkspace}
+              selectedSession={selectedSession}
+              onArchiveSession={onArchiveSession}
+              onSelectSession={onSelectSession}
+              onAction={() => (archived ? onSelectSession({ workspaceId: sub.workspaceId, sessionId: sub.session.id }) : onArchiveSession({ workspaceId: sub.workspaceId, sessionId: sub.session.id }))}
+              onSelect={() => onSelectSession({ workspaceId: sub.workspaceId, sessionId: sub.session.id })}
+            />
+          ))}
+        </div>
+      ) : null}
+    </>
   );
 }

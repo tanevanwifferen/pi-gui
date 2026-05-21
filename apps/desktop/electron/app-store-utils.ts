@@ -257,6 +257,7 @@ function buildSessionRecord(
     runningSince: runningSinceBySession.get(key),
     hasUnseenUpdate: hasUnseenSessionUpdate(session.status, session.updatedAt, lastViewedAt, transcript),
     config: sessionConfigBySession.get(key),
+    ...(session.parentSessionId ? { parentSessionId: session.parentSessionId } : {}),
   };
 }
 

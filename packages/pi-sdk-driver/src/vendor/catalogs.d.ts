@@ -45,6 +45,8 @@ declare module "@pi-gui/catalogs" {
     previewSnippet?: string;
     sessionFilePath?: string;
     status: SessionStatus;
+    /** Session ID of the parent session, if this was spawned as a subagent. */
+    parentSessionId?: string;
   }
 
   export interface WorkspaceCatalogSnapshot {

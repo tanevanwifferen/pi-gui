@@ -176,12 +176,20 @@ export class SessionSupervisor {
     const infos = await SessionManager.list(path);
     const existingSessions = (await this.catalogs.sessions.listSessions(workspace.workspaceId)).sessions;
     const existingByKey = new Map(existingSessions.map((session) => [sessionKey(session.sessionRef), session]));
+    // Build a path → sessionId map so we can resolve parentSessionPath to a session ID.
+    const sessionIdByPath = new Map<string, string>([
+      ...existingSessions
+        .filter((s) => s.sessionFilePath)
+        .map((s) => [s.sessionFilePath as string, s.sessionRef.sessionId] as const),
+      ...infos.map((info) => [info.path, info.id] as const),
+    ]);
     const nextEntries = infos.map((info) =>
       this.sessionEntryFromInfo(
         workspace,
         info,
         this.records.get(sessionKey({ workspaceId: workspace.workspaceId, sessionId: info.id })),
         existingByKey.get(sessionKey({ workspaceId: workspace.workspaceId, sessionId: info.id })),
+        sessionIdByPath,
       ),
     );
     const discoveredKeys = new Set(nextEntries.map((entry) => sessionKey(entry.sessionRef)));
@@ -1494,6 +1502,7 @@ export class SessionSupervisor {
     info: SessionInfo,
     runtimeRecord?: ManagedSessionRecord,
     existingEntry?: SessionCatalogSnapshot["sessions"][number],
+    sessionIdByPath?: ReadonlyMap<string, string>,
   ): SessionCatalogSnapshot["sessions"][number] {
     const runtimeSnapshot =
       runtimeRecord && runtimeRecord.session && !runtimeRecord.closed ? buildSnapshot(runtimeRecord) : undefined;
@@ -1516,6 +1525,13 @@ export class SessionSupervisor {
     }
     if (previewSnippet !== undefined) {
       entry.previewSnippet = previewSnippet;
+    }
+    const parentSessionId =
+      info.parentSessionPath && sessionIdByPath
+        ? (sessionIdByPath.get(info.parentSessionPath) ?? existingEntry?.parentSessionId)
+        : existingEntry?.parentSessionId;
+    if (parentSessionId) {
+      entry.parentSessionId = parentSessionId;
     }
     return entry;
   }

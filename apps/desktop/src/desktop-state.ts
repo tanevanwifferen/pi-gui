@@ -94,6 +94,8 @@ export interface SessionRecord {
   readonly runningSince?: string;
   readonly hasUnseenUpdate: boolean;
   readonly config?: SessionConfig;
+  /** ID of the parent session if this was spawned as a subagent. */
+  readonly parentSessionId?: string;
 }
 
 export interface SelectedTranscriptRecord {
@@ -111,6 +113,8 @@ export interface WorktreeRecord {
   readonly status: WorktreeStatus;
   readonly branchName?: string;
   readonly updatedAt: string;
+  /** True when the worktree branch has unpushed commits or a dirty working tree. */
+  readonly hasUnmergedChanges?: boolean;
 }
 
 export interface SessionExtensionStatusRecord {
