@@ -109,6 +109,11 @@ function WorktreeSection({ worktree, threads, onRemove, onArchiveThread }: Workt
             {worktree.path}
           </span>
         </div>
+        {worktree.hasUnmergedChanges && (
+          <span className="worktree-section__badge worktree-section__badge--unmerged">
+            Unmerged changes
+          </span>
+        )}
         <span
           className={`worktree-section__status worktree-section__status--${worktree.status}`}
         >

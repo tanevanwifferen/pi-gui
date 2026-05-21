@@ -301,7 +301,7 @@ export default function App() {
     }
 
     const workspacesById = new Map(snapshot.workspaces.map((workspace) => [workspace.id, workspace] as const));
-    const primaryWorkspaces = snapshot.workspaces.filter((workspace) => workspace.kind === "primary");
+    const primaryWorkspaces = snapshot.workspaces.filter((workspace) => workspace.kind === "primary" || workspace.kind === "project");
     const orphanWorkspaces = snapshot.workspaces.filter(
       (workspace) => workspace.kind === "worktree" && !workspacesById.has(workspace.rootWorkspaceId ?? ""),
     );
@@ -1774,6 +1774,10 @@ export default function App() {
       return;
     }
     if (newThreadModelOnboarding.requiresModelSelection) {
+      return;
+    }
+    // Prevent double-submission while a worktree set is being created.
+    if (worktreeProgress?.state === "creating") {
       return;
     }
     const treeCommand = parseTreeComposerCommand(newThreadPrompt);

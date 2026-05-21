@@ -164,6 +164,19 @@ function createWindow(): BrowserWindow {
   });
   window.webContents.on("context-menu", (_event, params) => {
     const menuItems: MenuItemConstructorOptions[] = [];
+    if (params.linkURL) {
+      menuItems.push({
+        label: "Open Link",
+        click: () => { void shell.openExternal(params.linkURL); },
+      });
+      menuItems.push({
+        label: "Copy URL",
+        click: () => { clipboard.writeText(params.linkURL); },
+      });
+      if (params.selectionText || menuItems.length > 0) {
+        menuItems.push({ type: "separator" });
+      }
+    }
     if (params.selectionText) {
       menuItems.push({ role: "copy", label: "Copy" });
     }

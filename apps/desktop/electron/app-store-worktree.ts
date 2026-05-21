@@ -27,20 +27,17 @@ export async function createWorktree(store: AppStoreInternals, input: CreateWork
 
   if (rootWorkspaceRecord?.repoPaths && rootWorkspaceRecord.repoPaths.length > 0) {
     return store.withErrorHandling(async () => {
-      const repos = rootWorkspaceRecord.repoPaths!.map((repoPath, index) => ({
-        name: basename(repoPath),
-        path: repoPath,
-        workspaceId: `${rootWorkspace.workspaceId}-repo-${index}`,
-      }));
-
+      const repos = buildRepoList(rootWorkspace.workspaceId, rootWorkspaceRecord);
       const manager = new MultiRepoWorktreeManager(store.catalogStore);
       const branchName = `worktree-${Date.now()}`;
       await manager.createWorktreeSet({
         projectKey: rootWorkspaceRecord.projectKey ?? rootWorkspaceRecord.id,
+        projectDisplayName: rootWorkspaceRecord.name,
         branchName,
         repos,
       });
-
+      // refreshWorktrees on the root workspace will now discover the rootPath as a linked
+      // worktree (since the root repo's worktree IS rootPath, a real git worktree).
       return store.refreshState({ refreshWorktrees: true });
     });
   }
@@ -76,6 +73,40 @@ export async function removeWorktree(store: AppStoreInternals, input: RemoveWork
   const rootWorkspace = store.workspaceRefFromState(input.workspaceId);
   if (!rootWorkspace) {
     return store.withError(`Unknown workspace: ${input.workspaceId}`);
+  }
+
+  const rootWorkspaceRecord = store.state.workspaces.find((w) => w.id === input.workspaceId);
+
+  // Multi-repo projects: the worktree is the root repo's git worktree directory, which also
+  // contains sub-repo worktrees as children. Use MultiRepoWorktreeManager for proper cleanup.
+  if (rootWorkspaceRecord?.repoPaths && rootWorkspaceRecord.repoPaths.length > 0) {
+    return store.withErrorHandling(async () => {
+      // Resolve the branch name from the catalog or from the worktree directory.
+      const worktreeEntry = await store.catalogStore.worktrees.getWorktree(input.worktreeId);
+      const branchName = worktreeEntry?.branchName ?? basename(input.worktreeId);
+
+      const repos = buildRepoList(rootWorkspace.workspaceId, rootWorkspaceRecord);
+
+      const manager = new MultiRepoWorktreeManager(store.catalogStore);
+      const projectKey = rootWorkspaceRecord.projectKey ?? rootWorkspaceRecord.id;
+      // removeWorktreeSet handles git worktree remove + remote branch delete + rm -rf
+      await manager.removeWorktreeSet(projectKey, branchName, repos, rootWorkspaceRecord.name);
+
+      // Remove the synced workspace entry from the driver (best-effort)
+      await store.driver.removeWorkspace(input.worktreeId).catch(() => undefined);
+
+      const selectedWorkspaceId =
+        store.state.selectedWorkspaceId === input.worktreeId ? input.workspaceId : store.state.selectedWorkspaceId;
+      const selectedSessionId =
+        store.state.selectedWorkspaceId === input.worktreeId ? "" : store.state.selectedSessionId;
+      return store.refreshState({
+        selectedWorkspaceId,
+        selectedSessionId,
+        composerDraft: "",
+        clearLastError: true,
+        refreshWorktrees: true,
+      });
+    });
   }
 
   return store.withErrorHandling(async () => {
@@ -213,19 +244,20 @@ export async function startThread(store: AppStoreInternals, input: StartThreadIn
           const folderName = `${baseLabel}-${suffix}`;
           const branchName = `pi/${folderName}`;
           const projectKey = wsRecord.projectKey ?? wsRecord.id;
-          const repos = wsRecord.repoPaths.map((repoPath, index) => ({
-            name: basename(repoPath),
-            path: repoPath,
-            workspaceId: `${rootWorkspace.workspaceId}-repo-${index}`,
-          }));
-          const worktreeSet = await manager.createWorktreeSet({ projectKey, branchName, repos });
+          const repos = buildRepoList(rootWorkspace.workspaceId, wsRecord);
+          const worktreeSet = await manager.createWorktreeSet({
+            projectKey,
+            projectDisplayName: wsRecord.name,
+            branchName,
+            repos,
+          });
           const displayName = preferredTitle || `Worktree ${suffix}`;
-          // Use the shared root dir as cwd so pi can navigate to all repos.
+          // rootPath IS the root repo's worktree — a valid git dir with sub-repos as children.
           const synced = await store.driver.syncWorkspace(worktreeSet.rootPath, displayName);
           targetWorkspace = synced.workspace;
           createdWorktreeContext = {
             branchName,
-            paths: worktreeSet.paths,
+            subRepoPaths: worktreeSet.subRepoPaths,
             rootPath: worktreeSet.rootPath,
           };
         } else {
@@ -236,7 +268,7 @@ export async function startThread(store: AppStoreInternals, input: StartThreadIn
           targetWorkspace = synced.workspace;
           createdWorktreeContext = {
             branchName: worktreeOptions.branchName,
-            paths: [created.path],
+            subRepoPaths: [],
             rootPath: created.path,
           };
         }
@@ -536,19 +568,24 @@ function buildMultiRepoContext(
 
 interface WorktreeContextInfo {
   readonly branchName?: string;
-  readonly paths: readonly string[];
+  /** Worktree paths for sub-repos (excludes the root repo, whose worktree IS rootPath). */
+  readonly subRepoPaths: readonly string[];
   readonly rootPath: string;
 }
 
 /**
  * Builds a prompt injection for a freshly-created worktree, telling the agent
  * that the branch is already checked out and where the repos live.
+ *
+ * For multi-repo projects:
+ *   - rootPath is the root repo's worktree (agent cwd)
+ *   - sub-repos are direct children of rootPath (./repoName/)
  */
 function buildWorktreeContextMessage(
   workspace: { projectKey?: string; name?: string } | undefined,
   ctx: WorktreeContextInfo,
 ): string {
-  const isMultiRepo = ctx.paths.length > 1;
+  const isMultiRepo = ctx.subRepoPaths.length > 0;
   const label = workspace?.projectKey ?? workspace?.name ?? "project";
   const lines: string[] = [
     "[Worktree context]",
@@ -557,17 +594,34 @@ function buildWorktreeContextMessage(
     lines.push(`Project: ${label}`);
   }
   if (ctx.branchName) {
-    lines.push(`Branch: ${ctx.branchName} (already created${isMultiRepo ? " in all repos" : ""})`);
+    lines.push(`Branch: ${ctx.branchName} (already checked out${isMultiRepo ? " in all repos" : ""})`);
   }
   lines.push(`Working directory: ${ctx.rootPath}`);
   if (isMultiRepo) {
-    lines.push("", "Sub-repo worktrees:");
-    for (const p of ctx.paths) {
-      lines.push(`- ${basename(p)}: ${p}`);
+    lines.push("", "Sub-repos are checked out as direct children of the working directory:");
+    for (const p of ctx.subRepoPaths) {
+      lines.push(`- ./${basename(p)}/  (${p})`);
     }
   }
   lines.push("", "The worktree is ready. Work directly in the paths above — do not create additional branches or worktrees.");
   return lines.join("\n");
+}
+
+/**
+ * Builds the repos list for multi-repo worktree creation, marking the root repo.
+ * The root repo's worktree will be placed at rootPath itself (agent cwd);
+ * sub-repos go to rootPath/{repoName}/.
+ */
+function buildRepoList(
+  rootWorkspaceId: string,
+  wsRecord: { path: string; repoPaths?: readonly string[]; id: string },
+): Array<{ name: string; path: string; workspaceId: string; isRoot: boolean }> {
+  return (wsRecord.repoPaths ?? []).map((repoPath, index) => ({
+    name: basename(repoPath),
+    path: repoPath,
+    workspaceId: repoPath === wsRecord.path ? rootWorkspaceId : `${rootWorkspaceId}-repo-${index}`,
+    isRoot: repoPath === wsRecord.path,
+  }));
 }
 
 function shortDisplayTitle(value: string | undefined, limit = 44): string | undefined {

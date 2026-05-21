@@ -115,6 +115,27 @@ export class GitWorktreeManager {
   }
 }
 
+/**
+ * Returns true if the git working tree at `worktreePath` has work that hasn't
+ * been integrated into any remote branch yet — i.e. unpushed commits or a
+ * dirty working tree.
+ *
+ * Best-effort: returns false on any error (missing path, not a git repo, …).
+ */
+export async function checkUnmergedChanges(worktreePath: string): Promise<boolean> {
+  try {
+    const [logOut, statusOut] = await Promise.all([
+      // Commits reachable from HEAD but not from any remote tracking ref
+      runGit(["-C", worktreePath, "log", "HEAD", "--not", "--remotes", "--oneline"]).catch(() => ""),
+      // Uncommitted changes (staged or unstaged)
+      runGit(["-C", worktreePath, "status", "--porcelain"]).catch(() => ""),
+    ]);
+    return logOut.trim().length > 0 || statusOut.trim().length > 0;
+  } catch {
+    return false;
+  }
+}
+
 async function resolveRepositoryRoot(workspacePath: string): Promise<string> {
   const output = await runGit(["-C", workspacePath, "rev-parse", "--show-toplevel"]);
   return canonicalPath(output.trim());

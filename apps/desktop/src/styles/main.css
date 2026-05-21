@@ -3822,6 +3822,8 @@ mark.thread-find-active {
 .worktree-section__name { font-weight: 600; font-size: 13px; }
 .worktree-section__path { font-size: 11px; opacity: 0.55; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-mono, monospace); }
 .worktree-section__status { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 500; flex-shrink: 0; }
+.worktree-section__badge { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 500; flex-shrink: 0; }
+.worktree-section__badge--unmerged { background: color-mix(in srgb, #f59e0b 15%, transparent); color: #b45309; }
 .worktree-section__status--ready { background: color-mix(in srgb, #22c55e 15%, transparent); color: #16a34a; }
 .worktree-section__status--missing { background: color-mix(in srgb, #f59e0b 15%, transparent); color: #b45309; }
 .worktree-section__status--error { background: color-mix(in srgb, #ef4444 15%, transparent); color: #dc2626; }
